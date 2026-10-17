@@ -237,6 +237,30 @@ struct TerminalToolbarKeys: Equatable, Codable, Sendable {
     }
 }
 
+enum WindowTapKeyboardBehavior: String, CaseIterable, Identifiable, Sendable {
+    case useDefault
+    case show
+    case hide
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .useDefault: "Use Default"
+        case .show: "Show on Tap"
+        case .hide: "Keep Hidden"
+        }
+    }
+
+    func showsKeyboard(defaultValue: Bool) -> Bool {
+        switch self {
+        case .useDefault: defaultValue
+        case .show: true
+        case .hide: false
+        }
+    }
+}
+
 struct TerminalSettings: Equatable, Codable, Sendable {
     static let minimumFontSize: Float32 = 5
     static let maximumFontSize: Float32 = 24
@@ -259,18 +283,23 @@ struct TerminalSettings: Equatable, Codable, Sendable {
     /// toolbar. The first key owns the long-press shortcut-palette gesture.
     var toolbarKeys: TerminalToolbarKeys
 
+    /// Terminal taps still focus panes and send mouse clicks when disabled.
+    var showKeyboardOnTerminalTap: Bool
+
     init(
         fontSize: Float32?,
         theme: TerminalTheme,
         allowInsecureRSAHostKeys: Bool = false,
         zoomMultipaneWindowsByDefault: Bool = false,
-        toolbarKeys: TerminalToolbarKeys = .default
+        toolbarKeys: TerminalToolbarKeys = .default,
+        showKeyboardOnTerminalTap: Bool = true
     ) {
         self.fontSize = Self.normalizedFontSize(fontSize)
         self.theme = theme
         self.allowInsecureRSAHostKeys = allowInsecureRSAHostKeys
         self.zoomMultipaneWindowsByDefault = zoomMultipaneWindowsByDefault
         self.toolbarKeys = toolbarKeys
+        self.showKeyboardOnTerminalTap = showKeyboardOnTerminalTap
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -279,6 +308,7 @@ struct TerminalSettings: Equatable, Codable, Sendable {
         case allowInsecureRSAHostKeys
         case zoomMultipaneWindowsByDefault
         case toolbarKeys
+        case showKeyboardOnTerminalTap
     }
 
     // Custom decoding keeps older persisted settings (written before these keys
@@ -296,7 +326,11 @@ struct TerminalSettings: Equatable, Codable, Sendable {
             toolbarKeys: try container.decodeIfPresent(
                 TerminalToolbarKeys.self,
                 forKey: .toolbarKeys
-            ) ?? .default
+            ) ?? .default,
+            showKeyboardOnTerminalTap: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .showKeyboardOnTerminalTap
+            ) ?? true
         )
     }
 

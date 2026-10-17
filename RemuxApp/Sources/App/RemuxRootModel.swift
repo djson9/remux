@@ -105,6 +105,7 @@ struct ActiveTerminalScreenEntry: Identifiable {
             sessionName: session.target.workspace.sessionName,
             terminalTheme: session.target.terminalSettings.theme,
             toolbarKeys: session.target.terminalSettings.toolbarKeys,
+            showKeyboardOnTerminalTap: session.target.terminalSettings.showKeyboardOnTerminalTap,
             loadingTitle: TerminalRuntimeStatusPresentation.projection(
                 for: session.runtimeState
             ).loadingTitle ?? TerminalRuntimeStatusPresentation.defaultLoadingTitle

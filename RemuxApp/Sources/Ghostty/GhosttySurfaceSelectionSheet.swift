@@ -36,6 +36,9 @@ struct GhosttyWindowSelectionSheet: View {
     let layout: PanePreviewLayout.Metrics
     let contentHeight: CGFloat
     let commandFailureMessage: String?
+    let tapKeyboardBehavior: (UUID) -> WindowTapKeyboardBehavior
+    let onSetTapKeyboardBehavior: (WindowTapKeyboardBehavior, UUID) -> Void
+    let onRefreshTapKeyboardSettings: () -> Void
     let onCreateWindow: (() -> Void)?
     let onSelect: (UUID) -> Void
     let onRemoveWindow: (UUID) -> Void
@@ -82,6 +85,7 @@ struct GhosttyWindowSelectionSheet: View {
             }
         }
         .onAppear {
+            onRefreshTapKeyboardSettings()
             session.reconcile(leafIDs: projection.previewLeafIDs)
             GhosttyRuntimeTrace.perf("panePreview.presentation activate kind=windows")
         }
@@ -168,6 +172,32 @@ struct GhosttyWindowSelectionSheet: View {
                             }
                     )
                     .allowsHitTesting(pendingContextAction?.id != window.id)
+
+                    if pendingContextAction?.id != window.id {
+                        Menu {
+                            Picker("Keyboard on tap", selection: Binding(
+                                get: { tapKeyboardBehavior(window.id) },
+                                set: { onSetTapKeyboardBehavior($0, window.id) }
+                            )) {
+                                ForEach(WindowTapKeyboardBehavior.allCases) { behavior in
+                                    Text(behavior.title).tag(behavior)
+                                }
+                            }
+                            .pickerStyle(.inline)
+                        } label: {
+                            Image(systemName: "keyboard")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(tapKeyboardBehavior(window.id) == .useDefault
+                                    ? Color.white : chromeStyle.accent)
+                                .frame(width: 36, height: 32)
+                                .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 7))
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("Keyboard on tap for \(topLevelNoun.singular) \(window.displayIndex)")
+                        .accessibilityValue(tapKeyboardBehavior(window.id).title)
+                        .accessibilityIdentifier("terminal.window.tap-keyboard.\(window.displayIndex)")
+                        .padding(4)
+                    }
 
                     if pendingContextAction?.id == window.id {
                         GhosttySelectionContextActionButton(

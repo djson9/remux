@@ -66,6 +66,21 @@ app enters the background. The normal on-screen stop and cancel controls remain
 available. CI checks both current-session and cold-launch flows with the debug
 dictation backend; the physical button assignment is made in iPhone Settings.
 
+## Terminal tap keyboard setting
+
+In **Settings → Keyboard**, turn off **Show keyboard on terminal tap** to use
+terminal mouse clicks without raising the keyboard. Pane selection and clicks
+still work, and the toolbar keyboard button opens the keyboard when you need it.
+This preference is saved and applies immediately to open sessions. It defaults
+to on for new installs and existing settings.
+
+Each card in **Windows** has a keyboard menu: **Use Default**, **Show on Tap**,
+or **Keep Hidden**. This overrides the global default for that tmux window.
+The override is saved as the window's `@remux-dev-tap-keyboard` option, so it
+survives reconnects and renaming and disappears when the window is closed.
+Use Default removes the override. Other Remux Dev clients attached to the same
+window share its override; each client's global default remains local.
+
 ## Local validation
 
 ```sh

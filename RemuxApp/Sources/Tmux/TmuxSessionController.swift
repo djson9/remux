@@ -215,6 +215,7 @@ final class TmuxSessionController: @unchecked Sendable {
         )
         case trackedInput(@Sendable (Bool) -> Void)
         case zoomMarks(@Sendable ([TmuxZoomMark]) -> Void)
+        case tapKeyboardSettings(@Sendable (String?) -> Void)
     }
 
     let queue: DispatchQueue
@@ -336,6 +337,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -355,6 +357,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -372,6 +375,7 @@ final class TmuxSessionController: @unchecked Sendable {
             outboundSink = nil
             let directoryQueries = outstandingPaneDirectoryQueries()
             let trackedInputCompletions = outstandingTrackedInputCompletions()
+            failOutstandingTapKeyboardSettings()
             requestsByToken.removeAll()
             directoryQueries.forEach { $0(.failure(.sessionUnavailable)) }
             trackedInputCompletions.forEach { $0(false) }
@@ -453,6 +457,7 @@ final class TmuxSessionController: @unchecked Sendable {
         case GHOSTTY_TMUX_ACTION_EXIT:
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -592,6 +597,10 @@ final class TmuxSessionController: @unchecked Sendable {
                 return
             }
             completionHandler(zoomOwner.marks(fromQueryReply: decodeTmuxString(completion.body)))
+            return
+        case .tapKeyboardSettings(let completionHandler):
+            completionHandler(completion.status == GHOSTTY_TMUX_COMMAND_SUCCESS
+                ? decodeTmuxString(completion.body) : nil)
             return
         case .action(let request, let topologyRevisionAtSubmission, let onSuccess):
             handleActionCompletion(
@@ -955,6 +964,55 @@ final class TmuxSessionController: @unchecked Sendable {
             }
             _ = drainOutbound()
         }
+    }
+
+    func requestWindowTapKeyboardSettings(
+        completion: @escaping @Sendable ([TmuxWindowID: WindowTapKeyboardBehavior]?) -> Void
+    ) {
+        requestTapKeyboardSettings(command: TmuxWindowTapKeyboard.query) { reply in
+            completion(reply.map { TmuxWindowTapKeyboard.settings(from: $0) })
+        }
+    }
+
+    func requestSetWindowTapKeyboard(
+        windowID: TmuxWindowID,
+        behavior: WindowTapKeyboardBehavior,
+        completion: @escaping @Sendable (Bool) -> Void
+    ) {
+        requestTapKeyboardSettings(
+            command: TmuxWindowTapKeyboard.command(windowID: windowID, behavior: behavior)
+        ) { reply in completion(reply != nil) }
+    }
+
+    private func requestTapKeyboardSettings(
+        command: String,
+        completion: @escaping @Sendable (String?) -> Void
+    ) {
+        queue.async { [self] in
+            guard let client, outboundSink != nil, !shuttingDown else {
+                completion(nil)
+                return
+            }
+            let (result, token) = enqueueCommandTokenOnWriter(command, client: client)
+            guard result == GHOSTTY_TMUX_RESULT_OK else {
+                completion(nil)
+                return
+            }
+            requestsByToken[token] = .tapKeyboardSettings(completion)
+            _ = drainOutbound()
+        }
+    }
+
+    private func failOutstandingTapKeyboardSettings() {
+        let completions = requestsByToken.values.compactMap { request -> (@Sendable (String?) -> Void)? in
+            guard case .tapKeyboardSettings(let completion) = request else { return nil }
+            return completion
+        }
+        requestsByToken = requestsByToken.filter {
+            guard case .tapKeyboardSettings = $0.value else { return true }
+            return false
+        }
+        completions.forEach { $0(nil) }
     }
 
     func requestCopyMode(paneID: TmuxPaneID) {
@@ -1633,6 +1691,7 @@ final class TmuxSessionController: @unchecked Sendable {
         guard !shuttingDown else { return }
         failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
         failOutstandingTrackedInput()
+        failOutstandingTapKeyboardSettings()
         deferredNavigationIntent = nil
         deferredWindowZoomIntent = nil
         successfulMutationRequiredAfterRevision = nil

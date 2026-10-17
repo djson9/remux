@@ -237,6 +237,30 @@ struct TerminalToolbarKeys: Equatable, Codable, Sendable {
     }
 }
 
+enum WindowTapKeyboardBehavior: String, CaseIterable, Identifiable, Sendable {
+    case useDefault
+    case show
+    case hide
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .useDefault: "Use Default"
+        case .show: "Show on Tap"
+        case .hide: "Keep Hidden"
+        }
+    }
+
+    func showsKeyboard(defaultValue: Bool) -> Bool {
+        switch self {
+        case .useDefault: defaultValue
+        case .show: true
+        case .hide: false
+        }
+    }
+}
+
 struct TerminalSettings: Equatable, Codable, Sendable {
     static let minimumFontSize: Float32 = 5
     static let maximumFontSize: Float32 = 24

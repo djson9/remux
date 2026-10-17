@@ -2036,7 +2036,7 @@ private struct TerminalSettingsView: View {
             } header: {
                 Text("Keyboard")
             } footer: {
-                Text("Turn off to tap terminal apps without opening the keyboard. Use the keyboard button to type.")
+                Text("Turn off to tap terminal apps without opening the keyboard. Override this for each window in Windows. Use the keyboard button to type.")
             }
             .libraryHomeListRowSurface()
 

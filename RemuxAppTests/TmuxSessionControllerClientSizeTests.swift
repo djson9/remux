@@ -5,6 +5,46 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
+    func testWindowKeyboardQueryReadsEachWindowOverride() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        var number = harness.nextCommandNumber
+        let received = expectation(description: "window keyboard settings")
+        harness.controller.requestWindowTapKeyboardSettings { settings in
+            XCTAssertEqual(settings, [TmuxWindowID(0): .hide, TmuxWindowID(1): .show])
+            received.fulfill()
+        }
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings(), ["\(TmuxWindowTapKeyboard.query)\n"])
+        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "@0 hide\n@1 show\n").utf8))
+        await fulfillment(of: [received], timeout: 1)
+    }
+
+    func testWindowKeyboardWriteTargetsOnlyOneWindowAndReportsRejection() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        var number = harness.nextCommandNumber
+        let rejected = expectation(description: "keyboard setting rejected")
+        harness.controller.requestSetWindowTapKeyboard(windowID: 1, behavior: .hide) { succeeded in
+            XCTAssertFalse(succeeded)
+            rejected.fulfill()
+        }
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings(), ["set-option -w -t @1 @remux-dev-tap-keyboard hide\n"])
+        harness.controller.pump(Data(errorBlock(commandNumber: &number, body: "can't find window").utf8))
+        await fulfillment(of: [rejected], timeout: 1)
+    }
+
+    func testWindowKeyboardQueryCompletesOnTransportLoss() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        let failed = expectation(description: "keyboard query ends on disconnect")
+        harness.controller.requestWindowTapKeyboardSettings { settings in
+            XCTAssertNil(settings)
+            failed.fulfill()
+        }
+        await drain(harness.controller)
+        harness.controller.transportClosed()
+        await fulfillment(of: [failed], timeout: 1)
+    }
+
     func testCrossWindowSelectionCommandPolicy() {
         XCTAssertEqual(
             TmuxSessionController.crossWindowSelectionCommands(

@@ -179,8 +179,9 @@ final class RemuxAppUITests: XCTestCase {
         }
         XCTAssertTrue(toggle.waitForExistence(timeout: 3))
         XCTAssertEqual(toggle.value as? String, "1")
-        toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).tap()
+        let toggleOff = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "0"), object: toggle)
+        XCTAssertEqual(XCTWaiter.wait(for: [toggleOff], timeout: 3), .completed)
         attachScreenshot(named: "settings-terminal-tap-keyboard-disabled")
         app.navigationBars["Settings"].buttons.firstMatch.tap()
         app.buttons["library.active-session.show"].firstMatch.tap()
@@ -193,6 +194,17 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "explicit keyboard button"))
         app.buttons["terminal.keyboard"].tap()
         XCTAssertNotNil(waitForKeyboardPresence(false, label: "explicit keyboard hide"))
+
+        app.buttons["terminal.windows"].tap()
+        let windowKeyboard = app.buttons["terminal.window.tap-keyboard.1"]
+        XCTAssertTrue(windowKeyboard.waitForExistence(timeout: 5))
+        windowKeyboard.tap()
+        app.buttons["Show on Tap"].tap()
+        XCTAssertEqual(windowKeyboard.value as? String, "Show on Tap")
+        attachScreenshot(named: "window-tap-keyboard-override")
+        app.buttons["terminal.windows.close"].tap()
+        terminal.tap()
+        XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {

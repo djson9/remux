@@ -799,7 +799,8 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
             return
         }
         let isInputAvailable = isTerminalInputAvailable
-        let requestsKeyboard = shouldShowKeyboard && presentation.showKeyboardOnTerminalTap
+        let requestsKeyboard = shouldShowKeyboard && model.tapKeyboardBehavior(forSurfaceID: surfaceID)
+            .showsKeyboard(defaultValue: presentation.showKeyboardOnTerminalTap)
         if !isActiveComposerPresented {
             if requestsKeyboard {
                 showSystemKeyboard()
@@ -2152,6 +2153,9 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 layout: windowLayout,
                 contentHeight: contentHeight,
                 commandFailureMessage: selectionSheetCommandFailureMessage,
+                tapKeyboardBehavior: model.tapKeyboardBehavior(inTopLevel:),
+                onSetTapKeyboardBehavior: model.setTapKeyboardBehavior(_:inTopLevel:),
+                onRefreshTapKeyboardSettings: model.refreshWindowTapKeyboardSettings,
                 onCreateWindow: createTopLevelFromSelectionSheet,
                 onSelect: selectTopLevelFromSelectionSheet,
                 onRemoveWindow: closeTopLevelFromSelectionSheet

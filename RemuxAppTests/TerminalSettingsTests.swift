@@ -2,6 +2,21 @@ import XCTest
 @testable import Remux
 
 final class TerminalSettingsTests: XCTestCase {
+    func testWindowKeyboardChoiceOverridesEitherGlobalDefault() {
+        for defaultValue in [true, false] {
+            XCTAssertEqual(WindowTapKeyboardBehavior.useDefault.showsKeyboard(defaultValue: defaultValue), defaultValue)
+            XCTAssertTrue(WindowTapKeyboardBehavior.show.showsKeyboard(defaultValue: defaultValue))
+            XCTAssertFalse(WindowTapKeyboardBehavior.hide.showsKeyboard(defaultValue: defaultValue))
+        }
+    }
+
+    func testWindowKeyboardQueryKeepsWindowsSeparateAndIgnoresInvalidValues() {
+        let settings = TmuxWindowTapKeyboard.settings(from: "@0 hide\n@1 show\n@2 \n@3 invalid\ninvalid hide\n")
+        XCTAssertEqual(settings, [TmuxWindowID(0): .hide, TmuxWindowID(1): .show])
+        XCTAssertEqual(TmuxWindowTapKeyboard.command(windowID: 1, behavior: .useDefault),
+                       "set-option -w -u -t @1 @remux-dev-tap-keyboard")
+    }
+
     func testDefaultSettingsProduceNoGhosttyConfig() {
         XCTAssertNil(TerminalSettings.default.ghosttyConfigContents)
     }

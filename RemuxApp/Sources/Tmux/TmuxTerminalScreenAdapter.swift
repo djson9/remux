@@ -88,6 +88,13 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
     private var pendingOwnedZoomPreservation: (windowID: TmuxWindowID, paneID: TmuxPaneID)?
     private var didAdoptZoomMarks = false
     private var multipaneZoomDefault = TmuxMultipaneZoomDefaultPolicy()
+    private var windowTapKeyboardSettings: [TmuxWindowID: WindowTapKeyboardBehavior] = [:]
+    private var confirmedWindowTapKeyboardSettings: [TmuxWindowID: WindowTapKeyboardBehavior] = [:]
+    private var didLoadWindowTapKeyboardSettings = false
+    private var isLoadingWindowTapKeyboardSettings = false
+    private var tapKeyboardRevision: UInt64 = 0
+    private var tapKeyboardMutationRevisions: [TmuxWindowID: UInt64] = [:]
+    private var tapKeyboardConfirmedRevisions: [TmuxWindowID: UInt64] = [:]
 
     private var commandFailureMessage: String?
     private(set) var commandFailureEvent: GhosttyTerminalCommandFailureEvent?
@@ -120,6 +127,9 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
                     self.reconcileZoomOwnership(with: topology)
                     self.applyMultipaneZoomDefaultIfNeeded(to: topology)
                     self.adoptZoomMarksOnce()
+                    if !self.didLoadWindowTapKeyboardSettings {
+                        self.refreshWindowTapKeyboardSettings()
+                    }
                 } else {
                     self.ownedZoomWindowIDs.removeAll()
                     self.pendingZoomOwnershipWindowIDs.removeAll()
@@ -190,6 +200,12 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
         pendingOwnedZoomPreservation = nil
         didAdoptZoomMarks = false
         multipaneZoomDefault.reset()
+        windowTapKeyboardSettings.removeAll()
+        confirmedWindowTapKeyboardSettings.removeAll()
+        tapKeyboardMutationRevisions.removeAll()
+        tapKeyboardConfirmedRevisions.removeAll()
+        didLoadWindowTapKeyboardSettings = false
+        isLoadingWindowTapKeyboardSettings = false
         activeManagedPaneID = nil
         pendingFocusedPaneID = nil
         session = nil
@@ -456,8 +472,11 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
     // MARK: Command failures
 
     private func presentCommandFailure(for request: TmuxSessionController.Request) {
+        presentCommandFailure(message: "tmux: \(Self.failureLabel(for: request)) failed")
+    }
+
+    private func presentCommandFailure(message: String) {
         commandFailureToken &+= 1
-        let message = "tmux: \(Self.failureLabel(for: request)) failed"
         commandFailureMessage = message
         commandFailureEvent = GhosttyTerminalCommandFailureEvent(
             token: commandFailureToken,
@@ -1040,6 +1059,67 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
             topLevelID: topLevelID,
             snapshot: topologySnapshot
         )
+    }
+
+    func refreshWindowTapKeyboardSettings() {
+        guard let controller, latestTopology != nil, !isLoadingWindowTapKeyboardSettings else { return }
+        isLoadingWindowTapKeyboardSettings = true
+        let revision = tapKeyboardRevision
+        controller.requestWindowTapKeyboardSettings { [weak self] settings in
+            Task { @MainActor in
+                guard let self, self.controller === controller else { return }
+                self.isLoadingWindowTapKeyboardSettings = false
+                guard let settings else { return }
+                self.didLoadWindowTapKeyboardSettings = true
+                for window in self.latestTopology?.windows ?? [] {
+                    // A late query must not overwrite a choice made in its menu.
+                    guard (self.tapKeyboardMutationRevisions[window.id] ?? 0) <= revision else { continue }
+                    self.windowTapKeyboardSettings[window.id] = settings[window.id]
+                    self.confirmedWindowTapKeyboardSettings[window.id] = settings[window.id]
+                }
+                self.objectWillChange.send()
+            }
+        }
+    }
+
+    func tapKeyboardBehavior(inTopLevel id: UUID) -> WindowTapKeyboardBehavior {
+        guard let windowID = identities.windowID(for: id) else { return .useDefault }
+        return windowTapKeyboardSettings[windowID] ?? .useDefault
+    }
+
+    func tapKeyboardBehavior(forSurfaceID id: UUID) -> WindowTapKeyboardBehavior {
+        guard let paneID = identities.paneID(for: id),
+              let pane = latestTopology?.panes.first(where: { $0.id == paneID }) else { return .useDefault }
+        return windowTapKeyboardSettings[pane.windowID] ?? .useDefault
+    }
+
+    func setTapKeyboardBehavior(_ behavior: WindowTapKeyboardBehavior, inTopLevel id: UUID) {
+        guard let controller, let windowID = identities.windowID(for: id),
+              latestTopology?.windows.contains(where: { $0.id == windowID }) == true else { return }
+        tapKeyboardRevision &+= 1
+        let revision = tapKeyboardRevision
+        tapKeyboardMutationRevisions[windowID] = revision
+        windowTapKeyboardSettings[windowID] = behavior == .useDefault ? nil : behavior
+        objectWillChange.send()
+        controller.requestSetWindowTapKeyboard(windowID: windowID, behavior: behavior) { [weak self] succeeded in
+            Task { @MainActor in
+                guard let self, self.controller === controller else { return }
+                if succeeded {
+                    guard revision >= (self.tapKeyboardConfirmedRevisions[windowID] ?? 0) else { return }
+                    self.tapKeyboardConfirmedRevisions[windowID] = revision
+                    self.confirmedWindowTapKeyboardSettings[windowID] = behavior == .useDefault ? nil : behavior
+                    if (self.tapKeyboardMutationRevisions[windowID] ?? 0) <= revision {
+                        self.windowTapKeyboardSettings[windowID] = self.confirmedWindowTapKeyboardSettings[windowID]
+                        self.tapKeyboardMutationRevisions[windowID] = revision
+                        self.objectWillChange.send()
+                    }
+                } else if self.tapKeyboardMutationRevisions[windowID] == revision {
+                    self.windowTapKeyboardSettings[windowID] = self.confirmedWindowTapKeyboardSettings[windowID]
+                    self.tapKeyboardMutationRevisions[windowID] = self.tapKeyboardConfirmedRevisions[windowID] ?? 0
+                    self.presentCommandFailure(message: "Couldn't save the keyboard setting. Please try again.")
+                }
+            }
+        }
     }
 
     var topLevelNoun: GhosttyTopLevelNoun { .window }

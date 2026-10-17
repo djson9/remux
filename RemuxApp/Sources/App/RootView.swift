@@ -2133,6 +2133,16 @@ private struct TerminalSettingsView: View {
             .libraryHomeListRowSurface()
 
             Section {
+                NavigationLink {
+                    RemuxDictationSettingsView()
+                } label: {
+                    Label("Dictation", systemImage: "mic")
+                }
+                .accessibilityIdentifier("settings.dictation")
+            }
+            .libraryHomeListRowSurface()
+
+            Section {
                 Toggle("Allow older RSA host keys", isOn: allowInsecureRSAHostKeysBinding)
                     .tint(LibraryHomePalette.controlAccent)
                     .accessibilityIdentifier("settings.allow-insecure-rsa")

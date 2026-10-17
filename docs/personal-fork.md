@@ -75,6 +75,23 @@ After a successful **Send**, the composer and software keyboard both close.
 Rejected sends keep the draft available. If the text was pasted but Enter could
 not be confirmed, the composer stays open with the existing delivery status.
 
+## Dictation engines
+
+Choose **Settings → Dictation → Parakeet**, then tap **Download / Load Parakeet**.
+Remux uses the same setup as [ACP Web's LocalDictationKit](https://github.com/djson9/acp-web/blob/94c0e6f01979150adb9cc4d5028c399ce32bc4e5/ios/LocalDictationKit/Sources/LocalDictationKit/FluidAudioBackend.swift): FluidAudio 0.15.5,
+Parakeet TDT v2, INT8 encoder, all Core ML compute units, and fresh decoder state
+per utterance. The English model downloads about 487 MB once into Remux's own
+cache. Audio stays on the device and transcription works offline after setup.
+The composer microphone and existing Action Button shortcut use the selected
+engine on their next recording. Stop recording to receive the Parakeet transcript.
+
+Apple remains the default and can be selected again at any time. Recording never
+initiates a model download; missing models direct you to Settings. Download/load
+failures can be retried there. Cached models preload when the composer prepares;
+backgrounding and memory warnings release idle model memory. Recording uses the
+existing capture/drain implementation and a temporary file removed on completion
+or cancellation. Switching engines preserves composer text and attachments.
+
 ## Terminal tap keyboard setting
 
 In **Settings → Keyboard**, turn off **Show keyboard on terminal tap** to use

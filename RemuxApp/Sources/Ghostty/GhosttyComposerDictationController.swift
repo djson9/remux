@@ -87,6 +87,9 @@ protocol GhosttyComposerDictationBackendProtocol: Sendable {
 
 enum GhosttyComposerDictationBackendFactory {
     static func makeDefault() -> any GhosttyComposerDictationBackendProtocol {
+        if RemuxDictationEngine.current == .parakeet {
+            return GhosttyParakeetComposerDictationBackend()
+        }
         if #available(iOS 26.0, *) {
             return GhosttySpeechAnalyzerComposerDictationBackend()
         }
@@ -625,7 +628,9 @@ final class GhosttyComposerDictationController: ObservableObject {
     @Published private(set) var phase = GhosttyComposerDictationPhase.idle
     let audioLevelModel: GhosttyComposerAudioLevelModel
 
-    private let backend: any GhosttyComposerDictationBackendProtocol
+    private var backend: any GhosttyComposerDictationBackendProtocol
+    private let usesDefaultBackend: Bool
+    private var selectedEngine: RemuxDictationEngine
     private let authorizationClient: GhosttyComposerDictationAuthorizationClient
     private let startDeadline: Duration
     private var authorizationTask: Task<Void, Never>?
@@ -652,11 +657,13 @@ final class GhosttyComposerDictationController: ObservableObject {
     }
 
     init(
-        backend: any GhosttyComposerDictationBackendProtocol = GhosttyComposerDictationBackendFactory.makeDefault(),
+        backend: (any GhosttyComposerDictationBackendProtocol)? = nil,
         authorizationClient: GhosttyComposerDictationAuthorizationClient = .live,
         startDeadline: Duration = .seconds(8)
     ) {
-        self.backend = backend
+        self.backend = backend ?? GhosttyComposerDictationBackendFactory.makeDefault()
+        usesDefaultBackend = backend == nil
+        selectedEngine = .current
         self.authorizationClient = authorizationClient
         self.startDeadline = startDeadline
         audioLevelModel = GhosttyComposerAudioLevelModel()
@@ -667,7 +674,15 @@ final class GhosttyComposerDictationController: ObservableObject {
     }
 
     func prepare() {
+        refreshDefaultBackend()
         backend.prepare(locale: .current)
+    }
+
+    private func refreshDefaultBackend() {
+        guard usesDefaultBackend, phase == .idle, selectedEngine != .current else { return }
+        backend.cancelAll {}
+        selectedEngine = .current
+        backend = GhosttyComposerDictationBackendFactory.makeDefault()
     }
 
     func start(
@@ -676,6 +691,8 @@ final class GhosttyComposerDictationController: ObservableObject {
         onFailure: @escaping (String) -> Void
     ) {
         guard phase == .idle else { return }
+
+        refreshDefaultBackend()
 
         sessionID &+= 1
         let requestedSessionID = sessionID

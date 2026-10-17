@@ -46,7 +46,6 @@ final class TmuxScreenModel: ObservableObject {
     private let onRuntimeStateChange: (TerminalRuntimeStateUpdate) -> Void
     private var runtime: GhosttyKitRuntime?
     private var currentTerminalSettings: TerminalSettings
-    private var appliedTerminalSettings: TerminalSettings
     private var reportTracker = TerminalRuntimeStateReportTracker()
     private var pendingForegroundInactiveReason: TerminalDisconnectReason?
     private var stateObservation: AnyCancellable?
@@ -73,7 +72,6 @@ final class TmuxScreenModel: ObservableObject {
         self.sessionInstanceID = sessionInstanceID
         self.onRuntimeStateChange = onRuntimeStateChange
         self.currentTerminalSettings = target.terminalSettings
-        self.appliedTerminalSettings = target.terminalSettings
         self.initialClientSize = initialClientSize
         let flow = "session.open.\(target.workspace.id.uuidString)"
         let runtimeInitStart = GhosttyRuntimeTrace.nowNanos()
@@ -148,13 +146,7 @@ final class TmuxScreenModel: ObservableObject {
         presentationObservation = terminalScreenAdapter.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self, weak session] in
-                guard let self, !self.stopped else { return }
-                do {
-                    try self.applyActiveWindowAppearance()
-                } catch {
-                    NSLog("Remux window text size apply failed: %@", String(describing: error))
-                }
-                guard session?.state == .ready else { return }
+                guard let self, !self.stopped, session?.state == .ready else { return }
                 self.report(TerminalReadinessProjector.runtimeState(
                     self.terminalScreenAdapter.terminalScreenPresentationProjection.readiness
                 ), source: .readiness)
@@ -344,18 +336,12 @@ final class TmuxScreenModel: ObservableObject {
         terminalScreenAdapter.setZoomMultipaneWindowsByDefault(
             settings.zoomMultipaneWindowsByDefault
         )
-        let previous = currentTerminalSettings
-        currentTerminalSettings = settings
-        do { try applyActiveWindowAppearance() }
-        catch { currentTerminalSettings = previous; throw error }
-    }
-
-    private func applyActiveWindowAppearance() throws {
-        var settings = currentTerminalSettings
-        if let size = terminalScreenAdapter.activeWindowFontSize { settings.fontSize = size }
-        guard !settings.hasSameTerminalAppearance(as: appliedTerminalSettings) else { return }
+        guard !settings.hasSameTerminalAppearance(as: currentTerminalSettings) else {
+            currentTerminalSettings = settings
+            return
+        }
         try runtime?.applyTerminalSettings(settings)
-        appliedTerminalSettings = settings
+        currentTerminalSettings = settings
         session?.applyTerminalConfiguration(theme: settings.theme)
         if let lastViewportPointSize, let lastViewportScale {
             prepareInitialViewport(size: lastViewportPointSize, scale: lastViewportScale)

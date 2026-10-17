@@ -2,34 +2,6 @@ import XCTest
 @testable import Remux
 
 final class TerminalSettingsTests: XCTestCase {
-    func testWindowFontSizeParsesValidOverridesAndRejectsUnsafeMetrics() {
-        let settings = TmuxWindowFontSize.settings(from: "@0 12\n@1 18.5\n@2 nan\n@3 inf\n@4 0\n@5 25\n@6 \n")
-        XCTAssertEqual(settings, [TmuxWindowID(0): 12, TmuxWindowID(1): 18.5])
-        XCTAssertEqual(TmuxWindowFontSize.command(windowID: 1, size: nil), "set-option -w -u -t @1 @remux-dev-font-size")
-    }
-
-    func testWindowFontSizesRemainIndependentAndIgnoreLateReads() {
-        var state = TmuxWindowFontSizeState()
-        state.apply([0: 12, 1: 18], windows: [0, 1], readRevision: 0)
-        let revision = state.change(14, in: 0)
-        state.apply([0: 12, 1: 16], windows: [0, 1], readRevision: 0)
-        XCTAssertEqual(state.value(for: 0), 14)
-        XCTAssertEqual(state.value(for: 1), 16)
-        XCTAssertFalse(state.complete(14, in: 0, revision: revision, succeeded: true))
-        XCTAssertNil(state.value(for: 2))
-    }
-
-    func testFailedRapidFontSizeChangesRestoreConfirmedValue() {
-        var state = TmuxWindowFontSizeState()
-        state.apply([0: 12], windows: [0], readRevision: 0)
-        let first = state.change(14, in: 0)
-        let second = state.change(16, in: 0)
-        XCTAssertFalse(state.complete(14, in: 0, revision: first, succeeded: false))
-        XCTAssertEqual(state.value(for: 0), 16)
-        XCTAssertTrue(state.complete(16, in: 0, revision: second, succeeded: false))
-        XCTAssertEqual(state.value(for: 0), 12)
-    }
-
     func testWindowKeyboardChoiceOverridesEitherGlobalDefault() {
         for defaultValue in [true, false] {
             XCTAssertEqual(WindowTapKeyboardBehavior.useDefault.showsKeyboard(defaultValue: defaultValue), defaultValue)

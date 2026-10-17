@@ -86,11 +86,20 @@ survives reconnects and renaming and disappears when the window is closed.
 Use Default removes the override. Other Remux Dev clients attached to the same
 window share its override; each client's global default remains local.
 
-The same menu has **Text Size**, with sizes from 5–24 pt and **Use Default**.
-This setting applies to every pane in that window and is saved as the window's
-`@remux-dev-font-size` option. Switching windows reapplies the selected window's
-size and recomputes the terminal grid; changing the global size preserves window
-overrides. Use Default returns that window to the global font setting.
+## Window ordering
+
+In **Windows**, long-press any card to enter editing mode. Drag a card onto
+another to insert it at that position. Tap **Done** to return to selecting
+windows. Every card shows its existing removal button while editing; removal
+still asks for confirmation. VoiceOver offers Reorder Windows, Move Earlier,
+and Move Later actions.
+
+Ordering changes tmux's window order, so it survives reconnects and appears on
+other clients. Window identities, panes, and keyboard preferences
+stay attached to the same window. The active window is restored by identity
+after the move because tmux can otherwise change selection while shifting
+indices. Server errors use the existing picker error banner; the grid follows
+the confirmed server topology.
 
 ## Local validation
 

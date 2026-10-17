@@ -5,18 +5,85 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
-    func testWindowFontSizeQueryKeepsEachWindowSeparate() async throws {
-        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+    func testWindowOrderRefreshLoadsExistingServerOrder() async throws {
+        let topologyRecorder = ControllerTopologyRecorder()
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4,
+            callbacks: .init(onTopology: { topologyRecorder.append($0) }))
+        topologyRecorder.clear()
         var number = harness.nextCommandNumber
-        let received = expectation(description: "window font sizes")
-        harness.controller.requestWindowFontSizes { sizes in
-            XCTAssertEqual(sizes, [TmuxWindowID(0): 12, TmuxWindowID(1): 18])
-            received.fulfill()
-        }
+        harness.controller.requestRefreshWindowOrder()
         await drain(harness.controller)
-        XCTAssertEqual(harness.recorder.takeStrings(), ["\(TmuxWindowFontSize.query)\n"])
-        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "@0 12\n@1 18\n").utf8))
-        await fulfillment(of: [received], timeout: 1)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(), "list-windows -F '#{window_id}'\n")
+        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "@1\n@0\n").utf8))
+        await drain(harness.controller)
+        let topology = try XCTUnwrap(topologyRecorder.latest)
+        XCTAssertEqual(topology.windows.map(\.id), [1, 0])
+        XCTAssertEqual(topology.activeWindowID, 0)
+        XCTAssertEqual(topology.panes.count, 4)
+        XCTAssertTrue(topology.panes.allSatisfy { $0.phase == .live })
+    }
+
+    func testWindowReorderRefreshesAuthoritativeOrderWithoutReplacingPanes() async throws {
+        let records = (0...2).map { id in
+            Self.windowRecord(id: id, active: id == 0, paneID: id,
+                layout: String(format: "%04x,83x44,0,0,%d", 0xb7dd + id, id),
+                visibleLayout: String(format: "%04x,83x44,0,0,%d", 0xb7dd + id, id),
+                name: "window-\(id)")
+        }
+        let topologyRecorder = ControllerTopologyRecorder()
+        let harness = try await readyController(listWindowsBody: records.joined(), expectedPaneCount: 3,
+            callbacks: .init(onTopology: { topologyRecorder.append($0) }))
+        topologyRecorder.clear()
+        var number = harness.nextCommandNumber
+        harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 2)
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(),
+            "swap-window -d -s @0 -t @1 ; swap-window -d -s @0 -t @2 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
+        let completed = (0..<3).map { _ in responseBlock(commandNumber: &number) }.joined()
+        harness.controller.pump(Data(completed.utf8))
+        harness.controller.pump(Data(responseBlock(commandNumber: &number,
+            body: "@1\n@2\n@0\n").utf8))
+        await drain(harness.controller)
+        let topology = try XCTUnwrap(topologyRecorder.latest)
+        XCTAssertEqual(topology.windows.map(\.id), [1, 2, 0])
+        XCTAssertEqual(topology.activeWindowID, 0)
+        XCTAssertEqual(Set(topology.panes.map(\.id)), [0, 1, 2])
+        XCTAssertTrue(topology.panes.allSatisfy { $0.phase == .live })
+    }
+
+    func testWindowReorderInsertsLaterAndRetainsActiveWindowIdentity() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 1)
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(),
+                       "swap-window -d -s @0 -t @1 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
+    }
+
+    func testWindowReorderInsertsEarlierAndRetainsActiveWindowIdentity() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        harness.controller.requestMoveWindow(windowID: 1, targetWindowID: 0)
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(),
+                       "swap-window -d -s @1 -t @0 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
+    }
+
+    func testWindowReorderOntoItselfDoesNothing() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 0)
+        await drain(harness.controller)
+        XCTAssertTrue(harness.recorder.takeStrings().isEmpty)
+    }
+
+    func testWindowReorderRejectsAWindowThatDisappeared() async throws {
+        let rejected = expectation(description: "stale window rejected")
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4,
+            callbacks: .init(onRequestFailed: { request in
+                XCTAssertEqual(request, .reorderWindow)
+                rejected.fulfill()
+            }))
+        harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 999)
+        await fulfillment(of: [rejected], timeout: 1)
+        XCTAssertTrue(harness.recorder.takeStrings().isEmpty)
     }
 
     func testWindowKeyboardQueryReadsEachWindowOverride() async throws {

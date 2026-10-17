@@ -207,34 +207,36 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
-    func testWindowTextSizeChangesFontMetricsAndRestoresDefault() {
+    func testLongPressEnablesWindowDraggingAndDoneRestoresSelection() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
         launchSeededSimulatorTerminal()
-        let metrics = app.otherElements["terminal.cell-metrics"]
-        XCTAssertTrue(metrics.waitForExistence(timeout: 5))
-        guard let original = metrics.value as? String,
-              let originalWidth = Int(original.split(separator: "x")[0]), originalWidth > 0 else {
-            return XCTFail("Missing measured terminal font cells")
-        }
-
-        func chooseSize(_ title: String) {
-            app.buttons["terminal.windows"].tap()
-            let settings = app.buttons["terminal.window.tap-keyboard.1"]
-            XCTAssertTrue(settings.waitForExistence(timeout: 5))
-            settings.tap()
-            app.buttons["Text Size"].tap()
-            app.buttons[title].tap()
-            app.buttons["terminal.windows.close"].tap()
-        }
-
-        chooseSize("14 pt")
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", original), object: metrics)
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
-        let enlarged = metrics.value as? String ?? "0x0"
-        XCTAssertGreaterThan(Int(enlarged.split(separator: "x")[0]) ?? 0, originalWidth)
-
-        chooseSize("Use Default")
-        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", original), object: metrics)
-        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+        app.buttons["terminal.windows"].tap()
+        let first = app.buttons["terminal.window.tile.1"]
+        let last = app.buttons["terminal.window.tile.3"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        XCTAssertTrue(last.exists)
+        XCTAssertTrue(first.label.contains("window-0"))
+        first.press(forDuration: 0.7)
+        let done = app.buttons["terminal.windows.reorder.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["terminal.window.remove.1"].exists)
+        XCTAssertTrue(app.buttons["terminal.window.remove.3"].exists)
+        first.tap()
+        XCTAssertTrue(done.exists)
+        first.press(forDuration: 0.6, thenDragTo: last)
+        let moved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "window-0"), object: last)
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 5), .completed)
+        XCTAssertTrue(first.label.contains("window-1"))
+        attachScreenshot(named: "windows-reordered-in-edit-mode")
+        done.tap()
+        XCTAssertFalse(app.buttons["terminal.window.remove.1"].exists)
+        app.buttons["terminal.windows.close"].tap()
+        app.buttons["terminal.windows"].tap()
+        XCTAssertTrue(last.waitForExistence(timeout: 3))
+        XCTAssertTrue(last.label.contains("window-0"))
+        last.tap()
+        XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.windows.sheet"], timeout: 3))
     }
 
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {

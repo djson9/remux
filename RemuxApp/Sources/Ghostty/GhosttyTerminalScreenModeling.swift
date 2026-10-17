@@ -135,6 +135,9 @@ protocol GhosttyTerminalActionModeling: ObservableObject {
     func createTopLevel() -> GhosttyTerminalActionOutcome
 
     @discardableResult
+    func moveTopLevel(_ id: UUID, to targetID: UUID) -> GhosttyTerminalActionOutcome
+
+    @discardableResult
     func splitFocusedPane(
         _ direction: ghostty_action_split_direction_e
     ) -> GhosttyTerminalActionOutcome
@@ -175,9 +178,7 @@ struct GhosttyTopLevelNoun: Equatable, Sendable {
 protocol GhosttyTerminalSelectionModeling: ObservableObject {
     var topLevelNoun: GhosttyTopLevelNoun { get }
 
-    func refreshWindowSettings()
-    func fontSize(inTopLevel id: UUID) -> Float32?
-    func setFontSize(_ size: Float32?, inTopLevel id: UUID)
+    func refreshWindowTapKeyboardSettings()
     func tapKeyboardBehavior(inTopLevel id: UUID) -> WindowTapKeyboardBehavior
     func tapKeyboardBehavior(forSurfaceID id: UUID) -> WindowTapKeyboardBehavior
     func setTapKeyboardBehavior(_ behavior: WindowTapKeyboardBehavior, inTopLevel id: UUID)

@@ -1,5 +1,5 @@
 {
-  "originHash" : "04484a387fdf14f5158a88bb42f130e45e82a113b0c51dae8194d2d39a9cba52",
+  "originHash" : "2b417082d109f3c4c6c83881684d01511ab715c7ad33b8f4fcaf55380661a8ba",
   "pins" : [
     {
       "identity" : "bigint",
@@ -16,6 +16,15 @@
       "location" : "https://github.com/h3nock/Citadel.git",
       "state" : {
         "revision" : "b3f200bf5e8cba9f5537b3643fe4d908b7fcd85c"
+      }
+    },
+    {
+      "identity" : "fluidaudio",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FluidInference/FluidAudio.git",
+      "state" : {
+        "revision" : "19600a485baa4998812e4654b70d2bab8f2c9949",
+        "version" : "0.15.5"
       }
     },
     {

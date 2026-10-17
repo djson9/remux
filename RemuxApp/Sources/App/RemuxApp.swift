@@ -1,5 +1,6 @@
 import GhosttyKit
 import SwiftUI
+import UIKit
 
 enum GhosttyKitBuildModePolicy {
     static func releaseValidationFailure(for mode: ghostty_build_mode_e) -> String? {
@@ -39,6 +40,12 @@ struct RemuxApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                    Task { await RemuxParakeetModel.shared.releaseWhenIdle() }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+                    Task { await RemuxParakeetModel.shared.releaseWhenIdle() }
+                }
         }
     }
 }

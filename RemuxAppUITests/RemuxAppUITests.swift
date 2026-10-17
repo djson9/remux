@@ -163,6 +163,26 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["terminal.shortcuts.settings"].waitForExistence(timeout: 1))
     }
 
+    func testDictationEngineSettingPersistsAndAppleRemainsAvailable() {
+        launchSeededSimulatorTerminal()
+        openHomeFromTerminal()
+        app.buttons["library.settings"].tap()
+        let dictation = app.buttons["settings.dictation"]
+        for _ in 0..<4 where !dictation.isHittable { settingsForm.swipeUp() }
+        XCTAssertTrue(dictation.waitForExistence(timeout: 3))
+        dictation.tap()
+        app.segmentedControls["dictation.engine"].buttons["Parakeet"].tap()
+        XCTAssertTrue(app.staticTexts["Parakeet TDT v2 · INT8"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["dictation.prepare-parakeet"].exists)
+        attachScreenshot(named: "parakeet-dictation-settings")
+        app.navigationBars["Dictation"].buttons.firstMatch.tap()
+        dictation.tap()
+        XCTAssertEqual(app.segmentedControls["dictation.engine"].buttons["Parakeet"].value as? String, "1")
+        app.segmentedControls["dictation.engine"].buttons["Apple"].tap()
+        XCTAssertFalse(app.buttons["dictation.prepare-parakeet"].exists)
+        XCTAssertTrue(app.staticTexts["Apple’s on-device speech recognition uses your current language."].exists)
+    }
+
     func testTerminalTapKeyboardSettingAppliesToRetainedSession() {
         launchSeededSimulatorTerminal()
         let terminal = app.otherElements["terminal.screen"]

@@ -15,12 +15,13 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  XCODE_DEVELOPER_DIR: /Applications/Xcode_26.4.1.app/Contents/Developer
+  DEVELOPER_DIR: ${{ vars.IOS_DEVELOPER_DIR }}
 
 jobs:
   changes:
     name: Changes
-    runs-on: ubuntu-latest
+    runs-on: middesk-linux
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 5
     outputs:
       app: ${{ steps.filter.outputs.app }}
@@ -62,12 +63,18 @@ jobs:
 
   site:
     name: Site
-    runs-on: ubuntu-latest
+    runs-on: middesk-linux
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 5
 
     steps:
       - name: Check out Remux
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
 
       - name: Validate static site
         shell: bash
@@ -75,18 +82,23 @@ jobs:
           set -euo pipefail
           node --check remux-site/script.js
 
-          while IFS= read -r asset; do
-            test -f "remux-site/${asset}" || {
-              printf 'Missing site asset: %s\n' "${asset}" >&2
-              exit 1
-            }
-          done < <(rg -o 'assets/[^"?]+' remux-site/index.html | sort -u)
+          python3 - <<'PY'
+          import pathlib,re
+          root = pathlib.Path('remux-site')
+          for asset in set(re.findall(r'assets/[^"?]+', (root / 'index.html').read_text())):
+              assert (root / asset).is_file(), f'Missing site asset: {asset}'
+          PY
+
+      - name: Validate OTA packaging and shell scripts
+        run: |
+          python3 -m unittest discover -s scripts/ios -p 'test_*.py'
+          bash -n scripts/ios/build-signed.sh
 
   app:
     name: App
     needs: changes
     if: needs.changes.outputs.app == 'true'
-    runs-on: macos-26
+    runs-on: middesk-macos
     timeout-minutes: 25
 
     steps:
@@ -97,8 +109,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d "${XCODE_DEVELOPER_DIR}"
-          sudo xcode-select --switch "${XCODE_DEVELOPER_DIR}"
+          test -d "${DEVELOPER_DIR}"
           xcodebuild -version
 
       - name: Test authorized-key installer
@@ -112,7 +123,7 @@ jobs:
           set -euo pipefail
           runtime_id="$(xcrun simctl list runtimes --json | jq -r '[.runtimes[] | select(.isAvailable == true and .platform == "iOS")] | sort_by(.version | split(".") | map(tonumber)) | last.identifier')"
           test -n "${runtime_id}"
-          udid="$(xcrun simctl create "Remux CI ${GITHUB_RUN_ID}" com.apple.CoreSimulator.SimDeviceType.iPhone-17e "${runtime_id}")"
+          udid="$(xcrun simctl create "Remux CI ${GITHUB_RUN_ID}" com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro "${runtime_id}")"
           printf 'udid=%s\n' "${udid}" >> "${GITHUB_OUTPUT}"
           xcrun simctl boot "${udid}"
 
@@ -161,7 +172,7 @@ jobs:
 
       - name: Build UI tests
         shell: bash
-        run: xcodebuild build-for-testing -project Remux.xcodeproj -scheme RemuxUIOnly -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}"
+        run: xcodebuild build-for-testing -project Remux.xcodeproj -scheme RemuxUIOnly -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" -jobs 4
 
       - name: Wait for simulator
         shell: bash
@@ -172,7 +183,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf "${RUNNER_TEMP}/RemuxUnitTests.xcresult"
-          xcodebuild test -project Remux.xcodeproj -scheme Remux -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" -only-testing:RemuxTests -resultBundlePath "${RUNNER_TEMP}/RemuxUnitTests.xcresult"
+          xcodebuild test -project Remux.xcodeproj -scheme Remux -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" -jobs 4 -only-testing:RemuxTests -resultBundlePath "${RUNNER_TEMP}/RemuxUnitTests.xcresult"
 
       - name: Delete simulator
         if: always() && steps.simulator.outputs.udid != ''

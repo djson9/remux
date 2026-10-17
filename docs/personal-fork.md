@@ -1,0 +1,67 @@
+# Personal Remux fork
+
+The fork is [djson9/remux](https://github.com/djson9/remux), based on
+[h3nock/remux](https://github.com/h3nock/remux). The MIT license and upstream
+history are preserved. `origin` points to the fork and `upstream` to the original.
+
+The app uses `com.davidjson.remux`, so it can coexist with upstream Remux.
+`project.yml` remains the source of truth for the checked-in Xcode project.
+Use XcodeGen 2.46.0 and Xcode 26.3 or a compatible newer toolchain.
+
+## Build and release
+
+CI runs on the existing Middesk infrastructure using repository-scoped
+`middesk-linux` and `middesk-macos` runners. Mac builds use four compiler jobs.
+Pull requests from other repositories do not run on these personal runners.
+The existing upstream unit tests and UI-test compilation remain part of CI.
+
+After successful main push CI, `iOS private OTA` builds the exact tested commit
+and publishes it. A manual workflow dispatch on main can also release a build.
+Releases are serialized and use the workflow run number as the build number.
+
+The release calls the pinned shared Apple signing lane in a GUI launchd session.
+The host must already have the approved Apple Development identity, compatible
+profile, and protected signing policy. The lane verifies the app, nested code,
+bundle identifier, entitlements, profile expiration, and device membership before
+the release script packages or publishes anything. No provisioning or certificate
+creation/revocation is performed.
+
+The shared tools are installed as an immutable Git checkout at
+`~/.local/share/apple-signing-tools/<SHA>`, matching
+`.apple-signing-tools-version`. The host supplies Ruby 3.2.2 at its existing
+rbenv path. The public repository contains no signing keys or credentials.
+
+Repository variables configure the host:
+
+| Variable | Meaning |
+| --- | --- |
+| `IOS_DEVELOPER_DIR` | Installed Xcode Developer directory |
+| `IOS_DEVICE_UDID` | Registered phone required in the existing profile |
+| `IOS_PROFILE_UUID` | Existing wildcard development profile UUID |
+| `OTA_BASE_URL` | Private HTTPS installer origin |
+| `OTA_SSH_HOST` | Existing Mac-to-VM deployment SSH account |
+
+The installer is [Remux OTA](https://jays-vm.tailade3f5.ts.net:8473/latest/).
+Open it in Safari while connected to Tailscale. The signed IPA and manifest live
+under immutable build-number directories in `/mnt/b2/remux-ios-ota` on the VM.
+The publisher checks the served IPA's SHA-256 before exposing the latest page.
+The latest manifest also points to the immutable IPA, keeping upgrades coherent.
+Private signing receipts and packages are retained under `.local/releases/` on
+the runner, and each published release includes its receipt and source metadata.
+
+## Local validation
+
+```sh
+python3 -m unittest discover -s scripts/ios -p 'test_*.py'
+bash -n scripts/ios/build-signed.sh
+scripts/test_install_authorized_key.sh
+scripts/fetch_ghosttykit.sh
+xcodegen generate
+xcodebuild build -project Remux.xcodeproj -scheme Remux \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -jobs 4 CODE_SIGNING_ALLOWED=NO
+```
+
+The fork includes a small Swift 6 compatibility fix: prewarm tracing calls hop
+directly to their MainActor method, avoiding an unnecessary closure capture of
+the detached task's weak reference. Prewarm scheduling behavior is preserved.

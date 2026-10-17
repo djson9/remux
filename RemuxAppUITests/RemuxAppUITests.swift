@@ -286,7 +286,7 @@ final class RemuxAppUITests: XCTestCase {
         app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Linked pane recording"
         launchSeededSimulatorTerminal()
-        app.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:2.0")!)
+        XCUIDevice.shared.system.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:2.0")!)
         let windows = app.buttons["terminal.windows"]
         let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
         XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 15), .completed)
@@ -307,7 +307,7 @@ final class RemuxAppUITests: XCTestCase {
         app.buttons["terminal.window.tile.1"].tap()
         XCTAssertEqual(windows.label, "Window 1 of 3")
         app.buttons["terminal.panes"].tap()
-        app.open(url)
+        XCUIDevice.shared.system.open(url)
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
         XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
         XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.panes.sheet"], timeout: 3))
@@ -331,7 +331,7 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 20), .completed)
         XCTAssertFalse(app.otherElements["terminal.composer.bounds"].exists)
 
-        app.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:99.0")!)
+        XCUIDevice.shared.system.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:99.0")!)
         let alert = app.alerts["Couldn’t Open Pane"]
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         XCTAssertTrue(alert.staticTexts["This window or pane is no longer available."].exists)

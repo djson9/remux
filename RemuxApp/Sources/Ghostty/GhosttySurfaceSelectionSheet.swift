@@ -105,6 +105,22 @@ struct GhosttyWindowSelectionSheet: View {
                     .accessibilityIdentifier("terminal.windows.close")
                 }
             }
+            .alert("Rename \(topLevelNoun.singular)", isPresented: Binding(
+                get: { pendingRename != nil },
+                set: { if !$0 { pendingRename = nil } }
+            ), presenting: pendingRename) { id in
+                TextField("Window name", text: $windowNameDraft)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .accessibilityIdentifier("terminal.window.rename.name")
+                Button("Cancel", role: .cancel) { pendingRename = nil }
+                Button("Save") {
+                    onRenameWindow(id, windowNameDraft)
+                    pendingRename = nil
+                }
+                .disabled(windowNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("terminal.window.rename.save")
+            }
         }
         .onAppear {
             onRefreshTapKeyboardSettings()
@@ -118,22 +134,6 @@ struct GhosttyWindowSelectionSheet: View {
             if let dropTargetID, !newValue.contains(dropTargetID) { self.dropTargetID = nil }
             if newValue.isEmpty { isReordering = false }
             if let pendingRename, !newValue.contains(pendingRename) { self.pendingRename = nil }
-        }
-        .alert("Rename \(topLevelNoun.singular)", isPresented: Binding(
-            get: { pendingRename != nil },
-            set: { if !$0 { pendingRename = nil } }
-        ), presenting: pendingRename) { id in
-            TextField("Window name", text: $windowNameDraft)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("terminal.window.rename.name")
-            Button("Cancel", role: .cancel) { pendingRename = nil }
-            Button("Save") {
-                onRenameWindow(id, windowNameDraft)
-                pendingRename = nil
-            }
-            .disabled(windowNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityIdentifier("terminal.window.rename.save")
         }
         .confirmationDialog(
             "Remove \(topLevelNoun.singular)?",

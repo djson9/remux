@@ -12,6 +12,7 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         for name in ["", " \n ", "one\ntwo", "one\rtwo", "one\0two"] {
             XCTAssertNil(TmuxSessionController.windowRenameCommand(windowID: 7, name: name))
         }
+        XCTAssertNotNil(TmuxSessionController.windowRenameCommand(windowID: 7, name: "👩‍💻 Work"))
     }
 
     func testWindowRenameUsesIdentityAndAppliesServerConfirmation() async throws {

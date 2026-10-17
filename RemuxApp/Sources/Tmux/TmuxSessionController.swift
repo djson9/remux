@@ -872,7 +872,8 @@ final class TmuxSessionController: @unchecked Sendable {
 
     static func windowRenameCommand(windowID: TmuxWindowID, name: String) -> String? {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.rangeOfCharacter(from: .controlCharacters) == nil else { return nil }
+        guard !name.isEmpty,
+              !name.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return nil }
         // rename-window expands formats even in a quoted argument. Escape #
         // as well as tmux's single-quoted command syntax to keep names literal.
         let literal = name.replacingOccurrences(of: "#", with: "##")

@@ -217,12 +217,14 @@ final class RemuxAppUITests: XCTestCase {
         let rename = app.buttons["terminal.window.rename.1"]
         XCTAssertTrue(rename.waitForExistence(timeout: 3))
         rename.tap()
-        let name = app.textFields["terminal.window.rename.name"]
+        let dialog = app.alerts["Rename Window"]
+        XCTAssertTrue(dialog.waitForExistence(timeout: 3))
+        let name = dialog.textFields.firstMatch
         XCTAssertTrue(name.waitForExistence(timeout: 3))
         XCTAssertEqual(name.value as? String, "window-0")
         name.tap()
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
-        let save = app.buttons["terminal.window.rename.save"]
+        let save = dialog.buttons["Save"]
         XCTAssertFalse(save.isEnabled)
         name.typeText("Project Alpha")
         save.tap()

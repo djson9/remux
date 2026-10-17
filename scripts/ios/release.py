@@ -29,11 +29,13 @@ def release(build, publish):
     signing_tools = Path.home() / ".local/share/apple-signing-tools" / pin
     if subprocess.check_output(["git", "-C", str(signing_tools), "rev-parse", "HEAD"], text=True).strip() != pin:
         raise ValueError("Signing tools do not match the reviewed revision")
+    if subprocess.check_output(["git", "-C", str(signing_tools), "status", "--porcelain", "--untracked-files=no"], text=True).strip():
+        raise ValueError("Pinned signing tools have tracked changes")
     profile = os.environ["REMUX_PROFILE_UUID"]
     os.environ["DEVICE_UDID"]  # Required membership is independently checked by the lane.
     ruby = Path.home() / ".rbenv/versions/3.2.2/bin/ruby"
     output = Path(tempfile.mkdtemp(prefix="remux-ota-", dir="/tmp"))
-    retained = REPO / ".local/releases" / build
+    retained = Path.home() / ".local/share/remux/releases" / build
     retained.mkdir(parents=True, exist_ok=False)
     result = retained / "signing-result.json"
     # The caller prepares the generated project and pinned GhosttyKit first.

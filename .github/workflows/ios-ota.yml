@@ -56,7 +56,8 @@ jobs:
 
       - name: Build, verify, and publish
         run: |
-          python3 scripts/ios/release.py "$GITHUB_RUN_NUMBER" --publish
+          build_number="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
+          python3 scripts/ios/release.py "$build_number" --publish
           {
             echo '### Remux OTA ready'
             echo

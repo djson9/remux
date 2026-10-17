@@ -17,7 +17,8 @@ The existing upstream unit tests and UI-test compilation remain part of CI.
 
 After successful main push CI, `iOS private OTA` builds the exact tested commit
 and publishes it. A manual workflow dispatch on main can also release a build.
-Releases are serialized and use the workflow run number as the build number.
+Releases are serialized. Build numbers combine the workflow run number and
+attempt (`run number × 100 + attempt`), so a failed release can be retried.
 
 The release calls the pinned shared Apple signing lane in a GUI launchd session.
 The host must already have the approved Apple Development identity, compatible
@@ -46,7 +47,7 @@ Open it in Safari while connected to Tailscale. The signed IPA and manifest live
 under immutable build-number directories in `/mnt/b2/remux-ios-ota` on the VM.
 The publisher checks the served IPA's SHA-256 before exposing the latest page.
 The latest manifest also points to the immutable IPA, keeping upgrades coherent.
-Private signing receipts and packages are retained under `.local/releases/` on
+Private signing receipts and packages are retained under `~/.local/share/remux/releases/` on
 the runner, and each published release includes its receipt and source metadata.
 
 ## Local validation

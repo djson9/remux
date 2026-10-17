@@ -1626,6 +1626,12 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 },
                 sendEnter: {
                     await sendComposerEnter(to: surfaceID)
+                },
+                onSubmitted: {
+                    dismissComposerKeyboard()
+                    withAnimation(GhosttyKeyboardChromeAnimation.composerTransition) {
+                        composer.close()
+                    }
                 }
             )
         )

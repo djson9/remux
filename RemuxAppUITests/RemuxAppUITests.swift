@@ -281,6 +281,30 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.windows.sheet"], timeout: 3))
     }
 
+    func testComposerSendClosesComposerAndKeyboard() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        launchSeededSimulatorTerminal()
+        let toggle = app.buttons["terminal.composer.toggle"]
+        toggle.tap()
+        let field = app.textViews["terminal.composer.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.tap()
+        XCTAssertNotNil(waitForKeyboardPresence(true, label: "composer keyboard before send"))
+        field.typeText("echo sent")
+        app.buttons["terminal.composer.send"].tap()
+
+        XCTAssertTrue(waitForElementToDisappear(field, timeout: 5))
+        XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.composer.bounds"], timeout: 3))
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "keyboard dismissed after send"))
+        waitForLiveTerminalInputReady(timeout: 5)
+        attachScreenshot(named: "composer-and-keyboard-closed-after-send")
+
+        toggle.tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertEqual(field.value as? String, "")
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "reopened composer keeps keyboard hidden"))
+    }
+
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
         let transcript = "Voice shortcut current session"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript
@@ -2007,21 +2031,21 @@ final class RemuxAppUITests: XCTestCase {
             return
         }
 
-        // Submit to the real tmux session; success clears the draft and
-        // restores the placeholder. The reversed token only appears in the
+        // Submit to the real tmux session; success closes the composer.
+        // The reversed token only appears in the
         // pane when the pasted command actually executed remotely.
         let send = app.buttons["terminal.composer.send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
-        let placeholder = app.staticTexts["terminal.composer.placeholder"]
+        let composerBounds = app.otherElements["terminal.composer.bounds"]
         let submitStart = Date()
         send.tap()
         let submitDeadline = Date().addingTimeInterval(20)
-        while Date() < submitDeadline, !placeholder.exists {
+        while Date() < submitDeadline, composerBounds.exists {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
         XCTAssertTrue(
-            placeholder.exists,
-            "Composer draft should clear after a successful live submit."
+            !composerBounds.exists,
+            "Composer should close after a successful live submit."
         )
         let submitMs = Date().timeIntervalSince(submitStart) * 1000
 

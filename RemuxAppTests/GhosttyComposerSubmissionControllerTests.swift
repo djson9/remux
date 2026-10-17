@@ -96,6 +96,7 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
         var prepareCount = 0
         var pastedMessages: [String] = []
         var enterCount = 0
+        var submittedCount = 0
         let destination = GhosttyComposerSubmissionDestination(
             workspaceID: UUID(),
             surfaceID: UUID(),
@@ -114,6 +115,11 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
             sendEnter: {
                 enterCount += 1
                 return true
+            },
+            onSubmitted: {
+                submittedCount += 1
+                XCTAssertFalse(composer.isSubmitting)
+                XCTAssertTrue(composer.draft.isEmpty)
             }
         )
 
@@ -123,6 +129,7 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
         XCTAssertEqual(prepareCount, 1)
         XCTAssertEqual(pastedMessages, ["Explain this"])
         XCTAssertEqual(enterCount, 1)
+        XCTAssertEqual(submittedCount, 1)
         XCTAssertEqual(composer.draft, "")
         XCTAssertTrue(composer.attachments.isEmpty)
         XCTAssertNil(composer.statusMessage)
@@ -131,6 +138,7 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
     @MainActor
     func testRejectedPastePreservesComposerContentAndNeverSendsEnter() async {
         let composer = GhosttyComposerModel()
+        composer.open()
         composer.draft = "Keep this"
         var enterCount = 0
         let destination = GhosttyComposerSubmissionDestination(
@@ -145,6 +153,9 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
             sendEnter: {
                 enterCount += 1
                 return true
+            },
+            onSubmitted: {
+                XCTFail("A rejected paste must keep the composer available")
             }
         )
 
@@ -153,12 +164,14 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
 
         XCTAssertEqual(enterCount, 0)
         XCTAssertEqual(composer.draft, "Keep this")
+        XCTAssertTrue(composer.isPresented)
         XCTAssertEqual(composer.statusMessage, "Couldn’t send. Message kept.")
     }
 
     @MainActor
     func testUnconfirmedEnterNamesDestinationInStatus() async {
         let composer = GhosttyComposerModel()
+        composer.open()
         composer.draft = "Run the tests"
         let destination = GhosttyComposerSubmissionDestination(
             workspaceID: UUID(),
@@ -169,13 +182,17 @@ final class GhosttyComposerSubmissionControllerTests: XCTestCase {
             },
             prepareTerminalInput: {},
             sendPaste: { _ in true },
-            sendEnter: { false }
+            sendEnter: { false },
+            onSubmitted: {
+                XCTFail("An unconfirmed Enter must keep the send status visible")
+            }
         )
 
         composer.submit(to: destination)
         await waitUntil { !composer.isSubmitting }
 
         XCTAssertEqual(composer.draft, "")
+        XCTAssertTrue(composer.isPresented)
         XCTAssertEqual(
             composer.statusMessage,
             "Couldn’t finish sending. Check “mini: claude”."

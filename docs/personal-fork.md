@@ -78,7 +78,7 @@ not be confirmed, the composer stays open with the existing delivery status.
 ## Dictation engines
 
 Choose **Settings → Dictation → Parakeet**, then tap **Download / Load Parakeet**.
-Remux uses the same setup as ACP Web's `ios/LocalDictationKit`: FluidAudio 0.15.5,
+Remux uses the same setup as [ACP Web's LocalDictationKit](https://github.com/djson9/acp-web/blob/94c0e6f01979150adb9cc4d5028c399ce32bc4e5/ios/LocalDictationKit/Sources/LocalDictationKit/FluidAudioBackend.swift): FluidAudio 0.15.5,
 Parakeet TDT v2, INT8 encoder, all Core ML compute units, and fresh decoder state
 per utterance. The English model downloads about 487 MB once into Remux's own
 cache. Audio stays on the device and transcription works offline after setup.

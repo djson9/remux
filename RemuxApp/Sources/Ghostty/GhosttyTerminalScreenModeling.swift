@@ -37,6 +37,7 @@ protocol GhosttyTerminalRenderingModeling: ObservableObject {
     var terminalInteractionProjection: GhosttyTerminalInteractionProjection { get }
     var terminalManagedSurfaceLookup: GhosttyManagedSurfaceLookup { get }
     var commandFailureEvent: GhosttyTerminalCommandFailureEvent? { get }
+    var externalNavigationRevision: UInt64 { get }
     var stateTraceLabel: String { get }
 
     func prepareInitialViewport(

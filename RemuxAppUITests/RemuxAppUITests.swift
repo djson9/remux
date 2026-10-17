@@ -306,9 +306,11 @@ final class RemuxAppUITests: XCTestCase {
         windows.tap()
         app.buttons["terminal.window.tile.1"].tap()
         XCTAssertEqual(windows.label, "Window 1 of 3")
+        app.buttons["terminal.panes"].tap()
         app.open(url)
         let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
         XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+        XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.panes.sheet"], timeout: 3))
         app.buttons["uitest.voice-shortcut"].tap()
         let stop = app.buttons["terminal.composer.dictation.stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 5))

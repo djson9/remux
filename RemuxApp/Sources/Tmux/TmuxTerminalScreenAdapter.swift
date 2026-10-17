@@ -99,6 +99,7 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
     private var commandFailureMessage: String?
     private(set) var commandFailureEvent: GhosttyTerminalCommandFailureEvent?
     private var commandFailureToken: UInt64 = 0
+    private(set) var externalNavigationRevision: UInt64 = 0
 
     private var subscriptions: [AnyCancellable] = []
 
@@ -803,6 +804,11 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
               topology.panes.contains(where: { $0.id == target.paneID && $0.windowID == target.windowID }) else { return false }
         requestWindowSelection(window, in: topology, controller: controller, preferredPaneID: target.paneID)
         return true
+    }
+
+    func prepareForExternalNavigation() {
+        externalNavigationRevision &+= 1
+        objectWillChange.send()
     }
 
     func currentPaneDeepLink(serverID: SavedServer.ID) -> URL? {

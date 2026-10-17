@@ -1265,6 +1265,7 @@ final class RemuxRootModel: ObservableObject {
               active.target.server.id == server.id,
               active.target.workspace.sessionName == link.sessionName else { throw RemuxTerminalDeepLink.OpenError.connection }
         let screen = terminalScreenModel(for: active)
+        screen.terminalScreenAdapter.prepareForExternalNavigation()
         let resolution = PaneLinkResolution()
         var requested = false
         var selected = false

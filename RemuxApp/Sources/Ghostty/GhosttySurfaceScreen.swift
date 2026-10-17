@@ -623,6 +623,11 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
             .onChange(of: interactionProjection.selectedActiveLeafID) { _, activeLeafID in
                 handleActiveLeafChange(activeLeafID)
             }
+            .onChange(of: model.externalNavigationRevision) { _, _ in
+                guard isSelected else { return }
+                selectionSheetBinding.wrappedValue = nil
+                isShortcutPalettePresented = false
+            }
             .onReceive(composerUpdates) { _ in
                 composerRevision &+= 1
 #if DEBUG

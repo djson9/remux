@@ -90,6 +90,30 @@ survives reconnects and renaming and disappears when the window is closed.
 Use Default removes the override. Other Remux Dev clients attached to the same
 window share its override; each client's global default remains local.
 
+## Links to a pane
+
+Open **Panes → Copy Link** to copy the current pane's link. Put it behind a
+button or link on a mobile page. Tapping it opens the saved session and selects
+its window and pane. Press the Action Button to start recording there.
+
+The address uses tmux's `session:window.pane` syntax:
+
+```text
+remuxdev://open?server=example.com&target=work:2.1
+```
+
+`server` identifies an existing saved connection by its UUID or unique hostname.
+`target` is URL-encoded tmux target syntax; the example selects session `work`,
+window index 2, pane index 1. Numbers follow tmux's indexes. Copy Link uses stable
+IDs, such as `=work:@17.%42`, so reordering or renaming windows preserves the
+destination. A literal `%` must be encoded as `%25`; Copy Link handles encoding.
+
+Links work from a cold launch and while another session is open. They select a
+destination without starting the microphone. An Action Button request made
+while navigation is pending waits for that pane to become ready. Missing targets
+show an error; links do not create missing sessions or saved server connections.
+Pane and window IDs last for the current tmux server lifetime.
+
 ## Window ordering
 
 In **Windows**, long-press any card to enter editing mode. Drag a card onto

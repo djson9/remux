@@ -27,6 +27,47 @@ extension SavedServer {
 
 @MainActor
 final class RemuxRootModelTests: XCTestCase {
+    func testPaneLinkRequiresASavedServerAndKeepsLibraryVisible() async {
+        let harness = makeHarness()
+        await harness.model.load()
+        do {
+            try await harness.model.openTerminalLink(.init(server: "unknown.example", target: "work:2.1"))
+            XCTFail("An unknown server must not connect")
+        } catch RemuxTerminalDeepLink.OpenError.savedServer {} catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(harness.model.state, .library)
+        XCTAssertTrue(harness.model.activeSessions.isEmpty)
+    }
+
+    func testPaneLinkRejectsAnAmbiguousHost() async {
+        let servers = ["First", "Second"].map { SavedServer(displayName: $0, host: "shared.example", username: "demo") }
+        let harness = makeHarness(servers: servers)
+        await harness.model.load()
+        do {
+            try await harness.model.openTerminalLink(.init(server: "shared.example", target: "work:2.1"))
+            XCTFail("An ambiguous host must not pick a connection")
+        } catch RemuxTerminalDeepLink.OpenError.ambiguousServer {} catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertTrue(harness.model.activeSessions.isEmpty)
+    }
+
+    func testStalePaneLinkDoesNotCreateAMissingSession() async throws {
+        let pair = makePasswordBackedServer()
+        let harness = makeHarness(servers: [pair.server], identities: [pair.identity], tmuxSessionDiscoverer: { _, _, _ in [] })
+        try await harness.credentialHelper.savePassword("test-password", for: pair.server.id)
+        await harness.model.load()
+        do {
+            try await harness.model.openTerminalLink(.init(server: pair.server.id.uuidString, target: "deleted:2.1"))
+            XCTFail("A stale link must not create a session")
+        } catch RemuxTerminalDeepLink.OpenError.missingSession {} catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertTrue(harness.model.activeSessions.isEmpty)
+        XCTAssertTrue(harness.model.library.workspaces.isEmpty)
+    }
+
     func testVoiceEntryColdLaunchResumesMostRecentSavedWorkspace() async throws {
         let pair = makePasswordBackedServer()
         let older = SavedWorkspace(serverID: pair.server.id, sessionName: "older", lastOpenedAt: Date(timeIntervalSince1970: 1))

@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 
 struct GhosttySurfaceScreenPresentation: Equatable {
     let workspaceID: SavedWorkspace.ID
+    let serverID: SavedServer.ID
     let sessionName: String
     let terminalTheme: TerminalTheme
     let toolbarKeys: TerminalToolbarKeys
@@ -621,6 +622,11 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
             }
             .onChange(of: interactionProjection.selectedActiveLeafID) { _, activeLeafID in
                 handleActiveLeafChange(activeLeafID)
+            }
+            .onChange(of: model.externalNavigationRevision) { _, _ in
+                guard isSelected else { return }
+                selectionSheetBinding.wrappedValue = nil
+                isShortcutPalettePresented = false
             }
             .onReceive(composerUpdates) { _ in
                 composerRevision &+= 1
@@ -2176,6 +2182,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 topLevelNoun: model.topLevelNoun,
                 topologySize: paneTopologySize,
                 commandFailureMessage: selectionSheetCommandFailureMessage,
+                currentPaneLink: model.currentPaneDeepLink(serverID: presentation.serverID),
                 onSplitPane: {
                     splitFocusedPaneFromSelectionSheet(
                         topLevelID: topLevelID,

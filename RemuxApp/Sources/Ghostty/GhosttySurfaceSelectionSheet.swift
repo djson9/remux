@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum GhosttySurfaceSelectionSheet: Identifiable {
     case windows(GhosttyPanePreviewSession)
@@ -333,11 +334,13 @@ struct GhosttyPaneSelectionSheet: View {
     @Environment(\.ghosttyTerminalChromeStyle) private var chromeStyle
     @State private var pendingRemoval: GhosttyPaneRemovalRequest?
     @State private var pendingContextAction: GhosttyPaneRemovalRequest?
+    @State private var didCopyLink = false
 
     let projection: GhosttyPaneSelectionSheetRenderProjection
     let topLevelNoun: GhosttyTopLevelNoun
     let topologySize: CGSize
     let commandFailureMessage: String?
+    let currentPaneLink: URL?
     let onSplitPane: (() -> Void)?
     let onStackPane: (() -> Void)?
     let onSetZoomed: (Bool) -> Void
@@ -392,6 +395,16 @@ struct GhosttyPaneSelectionSheet: View {
             .navigationTitle("Panes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if let currentPaneLink {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(didCopyLink ? "Copied" : "Copy Link", systemImage: "link") {
+                            UIPasteboard.general.string = currentPaneLink.absoluteString
+                            didCopyLink = true
+                            Haptic.tap()
+                        }
+                        .accessibilityIdentifier("terminal.pane.copy-link")
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         Haptic.tap()

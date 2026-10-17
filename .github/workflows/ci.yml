@@ -197,6 +197,8 @@ jobs:
             -only-testing:RemuxUITests/RemuxAppUITests/testLongPressEnablesWindowDraggingAndDoneRestoresSelection \
             -only-testing:RemuxUITests/RemuxAppUITests/testWindowRenameSavesAndCancelLeavesNameUnchanged \
             -only-testing:RemuxUITests/RemuxAppUITests/testComposerSendClosesComposerAndKeyboard \
+            -only-testing:RemuxUITests/RemuxAppUITests/testPaneDeepLinkOpensTargetCopiesLinkAndAllowsRecording \
+            -only-testing:RemuxUITests/RemuxAppUITests/testPaneDeepLinkColdLaunchAndMissingPaneError \
             -resultBundlePath "$RUNNER_TEMP/RemuxVoiceShortcut.xcresult"
 
       - name: Delete simulator

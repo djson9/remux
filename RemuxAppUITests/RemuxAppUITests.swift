@@ -281,6 +281,65 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.windows.sheet"], timeout: 3))
     }
 
+    func testPaneDeepLinkOpensTargetCopiesLinkAndAllowsRecording() throws {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
+        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Linked pane recording"
+        launchSeededSimulatorTerminal()
+        XCUIDevice.shared.system.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:2.0")!)
+        let windows = app.buttons["terminal.windows"]
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 15), .completed)
+
+        app.buttons["terminal.panes"].tap()
+        let copy = app.buttons["terminal.pane.copy-link"]
+        XCTAssertTrue(copy.waitForExistence(timeout: 3))
+        copy.tap()
+        XCTAssertTrue(copy.label.contains("Copied"))
+        app.buttons["terminal.panes.close"].tap()
+        let copied = try XCTUnwrap(pasteIntoEmptyComposer())
+        let url = try XCTUnwrap(URL(string: copied))
+        let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(parts.queryItems?.first(where: { $0.name == "target" })?.value, "=ui-test:@2.%2")
+        clearAndCloseComposer()
+
+        windows.tap()
+        app.buttons["terminal.window.tile.1"].tap()
+        XCTAssertEqual(windows.label, "Window 1 of 3")
+        app.buttons["terminal.panes"].tap()
+        XCUIDevice.shared.system.open(url)
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+        XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.panes.sheet"], timeout: 3))
+        app.buttons["uitest.voice-shortcut"].tap()
+        let stop = app.buttons["terminal.composer.dictation.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        app.buttons["uitest.voice-shortcut"].tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
+        XCTAssertEqual(app.textViews["terminal.composer.field"].value as? String, "Linked pane recording")
+        app.buttons["terminal.composer.toggle"].tap()
+        XCTAssertEqual(windows.label, "Window 3 of 3")
+        attachScreenshot(named: "deep-link-pane-ready-for-recording")
+    }
+
+    func testPaneDeepLinkColdLaunchAndMissingPaneError() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        launchSeededSimulatorTerminal()
+        app.terminate()
+        app.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:2.0")!)
+        let windows = app.buttons["terminal.windows"]
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "Window 3 of 3"), object: windows)
+        XCTAssertEqual(XCTWaiter.wait(for: [selected], timeout: 20), .completed)
+        XCTAssertFalse(app.otherElements["terminal.composer.bounds"].exists)
+
+        XCUIDevice.shared.system.open(URL(string: "remuxdev://open?server=example.com&target=ui-test:99.0")!)
+        let alert = app.alerts["Couldn’t Open Pane"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts["This window or pane is no longer available."].exists)
+        alert.buttons["OK"].firstMatch.tap()
+        XCTAssertEqual(windows.label, "Window 3 of 3")
+    }
+
     func testComposerSendClosesComposerAndKeyboard() {
         app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
         launchSeededSimulatorTerminal()

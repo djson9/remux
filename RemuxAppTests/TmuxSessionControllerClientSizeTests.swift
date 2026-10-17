@@ -5,6 +5,41 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
+    func testPaneTargetQueryQuotesNativeSyntaxAndRejectsControlCharacters() {
+        XCTAssertEqual(TmuxSessionController.paneTargetQuery("=Jay's Work:@17.%42"),
+            "list-panes -t '=Jay'\\''s Work:@17.%42' -F '#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_index}\t#{pane_active}'")
+        XCTAssertNil(TmuxSessionController.paneTargetQuery("work:2.1\nnew-window"))
+    }
+
+    func testPaneTargetResolutionUsesServerConfirmedIdentities() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoSinglePaneWindows, expectedPaneCount: 2)
+        var number = harness.nextCommandNumber
+        let resolved = expectation(description: "target resolved")
+        harness.controller.requestResolvePaneTarget("work:2.1") { target in
+            XCTAssertEqual(target?.windowID, 1)
+            XCTAssertEqual(target?.paneID, 1)
+            resolved.fulfill()
+        }
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(), TmuxSessionController.paneTargetQuery("work:2.1")! + "\n")
+        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "work\t@1\t%1\t1\t1\n").utf8))
+        await fulfillment(of: [resolved], timeout: 1)
+    }
+
+    func testMissingPaneTargetReportsResolutionFailure() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoSinglePaneWindows, expectedPaneCount: 2)
+        var number = harness.nextCommandNumber
+        let rejected = expectation(description: "missing target")
+        harness.controller.requestResolvePaneTarget("work:99.0") { target in
+            XCTAssertNil(target)
+            rejected.fulfill()
+        }
+        await drain(harness.controller)
+        _ = harness.recorder.takeStrings()
+        harness.controller.pump(Data(errorBlock(commandNumber: &number, body: "can't find pane").utf8))
+        await fulfillment(of: [rejected], timeout: 1)
+    }
+
     func testWindowRenameCommandKeepsNamesLiteralAndRejectsInvalidInput() {
         XCTAssertEqual(TmuxSessionController.windowRenameCommand(windowID: 7,
             name: "  -Jay's #{window_id} #(no-job) ; $HOME \\ 🚀  "),

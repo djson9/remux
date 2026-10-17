@@ -6,6 +6,30 @@ import XCTest
 
 @MainActor
 final class TmuxTerminalScreenAdapterTests: XCTestCase {
+    func testCopiedPaneLinkUsesNativeStableTmuxIdentities() async throws {
+        let runtime = try GhosttyKitRuntime()
+        let session = makeSession(runtime: runtime)
+        let adapter = TmuxTerminalScreenAdapter()
+        adapter.activate(session: session, initialViewportHandler: { _, _, _ in }, viewportStabilityHandler: { _ in })
+        session.handleTopology(topology(zoomed: false, activePaneID: 11, paneCount: 2))
+        let serverID = UUID()
+        let url = try XCTUnwrap(adapter.currentPaneDeepLink(serverID: serverID))
+        let link = try XCTUnwrap(RemuxTerminalDeepLink(url: url))
+        XCTAssertEqual(link.server, serverID.uuidString)
+        XCTAssertEqual(link.target, "=zoom-default-test:@1.%11")
+    }
+
+    func testLinkedPaneMustBelongToTheResolvedWindowAndSession() async throws {
+        let runtime = try GhosttyKitRuntime()
+        let session = makeSession(runtime: runtime)
+        let adapter = TmuxTerminalScreenAdapter()
+        adapter.activate(session: session, initialViewportHandler: { _, _, _ in }, viewportStabilityHandler: { _ in })
+        session.handleTopology(topology(zoomed: false, paneCount: 2))
+        XCTAssertFalse(adapter.focusLinkedPane(try XCTUnwrap(TmuxResolvedPaneTarget(reply: "other\t@1\t%11"))))
+        XCTAssertFalse(adapter.focusLinkedPane(try XCTUnwrap(TmuxResolvedPaneTarget(reply: "zoom-default-test\t@2\t%11"))))
+        XCTAssertFalse(adapter.focusLinkedPane(try XCTUnwrap(TmuxResolvedPaneTarget(reply: "zoom-default-test\t@1\t%99"))))
+    }
+
     func testIdentityRegistryKeepsPaneRoundTripStable() {
         var registry = TmuxTerminalIdentityRegistry()
         let paneID = TmuxPaneID(41)

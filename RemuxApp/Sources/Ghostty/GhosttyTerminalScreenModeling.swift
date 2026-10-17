@@ -37,6 +37,7 @@ protocol GhosttyTerminalRenderingModeling: ObservableObject {
     var terminalInteractionProjection: GhosttyTerminalInteractionProjection { get }
     var terminalManagedSurfaceLookup: GhosttyManagedSurfaceLookup { get }
     var commandFailureEvent: GhosttyTerminalCommandFailureEvent? { get }
+    var externalNavigationRevision: UInt64 { get }
     var stateTraceLabel: String { get }
 
     func prepareInitialViewport(
@@ -180,6 +181,8 @@ struct GhosttyTopLevelNoun: Equatable, Sendable {
 @MainActor
 protocol GhosttyTerminalSelectionModeling: ObservableObject {
     var topLevelNoun: GhosttyTopLevelNoun { get }
+
+    func currentPaneDeepLink(serverID: SavedServer.ID) -> URL?
 
     func refreshWindowTapKeyboardSettings()
     func tapKeyboardBehavior(inTopLevel id: UUID) -> WindowTapKeyboardBehavior

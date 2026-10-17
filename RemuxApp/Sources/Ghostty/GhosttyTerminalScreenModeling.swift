@@ -175,7 +175,9 @@ struct GhosttyTopLevelNoun: Equatable, Sendable {
 protocol GhosttyTerminalSelectionModeling: ObservableObject {
     var topLevelNoun: GhosttyTopLevelNoun { get }
 
-    func refreshWindowTapKeyboardSettings()
+    func refreshWindowSettings()
+    func fontSize(inTopLevel id: UUID) -> Float32?
+    func setFontSize(_ size: Float32?, inTopLevel id: UUID)
     func tapKeyboardBehavior(inTopLevel id: UUID) -> WindowTapKeyboardBehavior
     func tapKeyboardBehavior(forSurfaceID id: UUID) -> WindowTapKeyboardBehavior
     func setTapKeyboardBehavior(_ behavior: WindowTapKeyboardBehavior, inTopLevel id: UUID)

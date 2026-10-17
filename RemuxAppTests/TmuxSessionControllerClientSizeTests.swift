@@ -5,6 +5,20 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
+    func testWindowFontSizeQueryKeepsEachWindowSeparate() async throws {
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
+        var number = harness.nextCommandNumber
+        let received = expectation(description: "window font sizes")
+        harness.controller.requestWindowFontSizes { sizes in
+            XCTAssertEqual(sizes, [TmuxWindowID(0): 12, TmuxWindowID(1): 18])
+            received.fulfill()
+        }
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings(), ["\(TmuxWindowFontSize.query)\n"])
+        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "@0 12\n@1 18\n").utf8))
+        await fulfillment(of: [received], timeout: 1)
+    }
+
     func testWindowKeyboardQueryReadsEachWindowOverride() async throws {
         let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4)
         var number = harness.nextCommandNumber

@@ -207,6 +207,36 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
+    func testWindowTextSizeChangesFontMetricsAndRestoresDefault() {
+        launchSeededSimulatorTerminal()
+        let metrics = app.otherElements["terminal.cell-metrics"]
+        XCTAssertTrue(metrics.waitForExistence(timeout: 5))
+        guard let original = metrics.value as? String,
+              let originalWidth = Int(original.split(separator: "x")[0]), originalWidth > 0 else {
+            return XCTFail("Missing measured terminal font cells")
+        }
+
+        func chooseSize(_ title: String) {
+            app.buttons["terminal.windows"].tap()
+            let settings = app.buttons["terminal.window.tap-keyboard.1"]
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            app.buttons["Text Size"].tap()
+            app.buttons[title].tap()
+            app.buttons["terminal.windows.close"].tap()
+        }
+
+        chooseSize("14 pt")
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", original), object: metrics)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+        let enlarged = metrics.value as? String ?? "0x0"
+        XCTAssertGreaterThan(Int(enlarged.split(separator: "x")[0]) ?? 0, originalWidth)
+
+        chooseSize("Use Default")
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", original), object: metrics)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+    }
+
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
         let transcript = "Voice shortcut current session"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript

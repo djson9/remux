@@ -194,6 +194,7 @@ jobs:
             -only-testing:RemuxUITests/RemuxAppUITests/testVoiceComposerShortcutStartsRecordingInCurrentSession \
             -only-testing:RemuxUITests/RemuxAppUITests/testVoiceComposerShortcutColdLaunchResumesSessionAndRecords \
             -only-testing:RemuxUITests/RemuxAppUITests/testTerminalTapKeyboardSettingAppliesToRetainedSession \
+            -only-testing:RemuxUITests/RemuxAppUITests/testWindowTextSizeChangesFontMetricsAndRestoresDefault \
             -resultBundlePath "$RUNNER_TEMP/RemuxVoiceShortcut.xcresult"
 
       - name: Delete simulator

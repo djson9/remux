@@ -39,6 +39,8 @@ struct GhosttyWindowSelectionSheet: View {
     let tapKeyboardBehavior: (UUID) -> WindowTapKeyboardBehavior
     let onSetTapKeyboardBehavior: (WindowTapKeyboardBehavior, UUID) -> Void
     let onRefreshTapKeyboardSettings: () -> Void
+    let fontSize: (UUID) -> Float32?
+    let onSetFontSize: (Float32?, UUID) -> Void
     let onCreateWindow: (() -> Void)?
     let onSelect: (UUID) -> Void
     let onRemoveWindow: (UUID) -> Void
@@ -184,16 +186,31 @@ struct GhosttyWindowSelectionSheet: View {
                                 }
                             }
                             .pickerStyle(.inline)
+
+                            Menu {
+                                Picker("Text Size", selection: Binding<Float32?>(
+                                    get: { fontSize(window.id) },
+                                    set: { onSetFontSize($0, window.id) }
+                                )) {
+                                    Text("Use Default").tag(Float32?.none)
+                                    ForEach(Int(TerminalSettings.minimumFontSize)...Int(TerminalSettings.maximumFontSize), id: \.self) { size in
+                                        Text("\(size) pt").tag(Float32?.some(Float32(size)))
+                                    }
+                                }
+                                .pickerStyle(.inline)
+                            } label: {
+                                Label("Text Size", systemImage: "textformat.size")
+                            }
                         } label: {
-                            Image(systemName: "keyboard")
+                            Image(systemName: "slider.horizontal.3")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(tapKeyboardBehavior(window.id) == .useDefault
+                                .foregroundStyle(tapKeyboardBehavior(window.id) == .useDefault && fontSize(window.id) == nil
                                     ? Color.white : chromeStyle.accent)
                                 .frame(width: 36, height: 32)
                                 .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 7))
                                 .frame(width: 44, height: 44)
                         }
-                        .accessibilityLabel("Keyboard on tap for \(topLevelNoun.singular) \(window.displayIndex)")
+                        .accessibilityLabel("Settings for \(topLevelNoun.singular) \(window.displayIndex)")
                         .accessibilityValue(tapKeyboardBehavior(window.id).title)
                         .accessibilityIdentifier("terminal.window.tap-keyboard.\(window.displayIndex)")
                         .padding(4)

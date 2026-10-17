@@ -79,12 +79,18 @@ still work, and the toolbar keyboard button opens the keyboard when you need it.
 This preference is saved and applies immediately to open sessions. It defaults
 to on for new installs and existing settings.
 
-Each card in **Windows** has a keyboard menu: **Use Default**, **Show on Tap**,
+Each card in **Windows** has a settings menu: **Use Default**, **Show on Tap**,
 or **Keep Hidden**. This overrides the global default for that tmux window.
 The override is saved as the window's `@remux-dev-tap-keyboard` option, so it
 survives reconnects and renaming and disappears when the window is closed.
 Use Default removes the override. Other Remux Dev clients attached to the same
 window share its override; each client's global default remains local.
+
+The same menu has **Text Size**, with sizes from 5–24 pt and **Use Default**.
+This setting applies to every pane in that window and is saved as the window's
+`@remux-dev-font-size` option. Switching windows reapplies the selected window's
+size and recomputes the terminal grid; changing the global size preserves window
+overrides. Use Default returns that window to the global font setting.
 
 ## Local validation
 

@@ -20,6 +20,7 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         XCTAssertEqual(topology.windows.map(\.id), [1, 0])
         XCTAssertEqual(topology.activeWindowID, 0)
         XCTAssertEqual(topology.panes.count, 4)
+        XCTAssertTrue(topology.panes.allSatisfy { $0.phase == .live })
     }
 
     func testWindowReorderRefreshesAuthoritativeOrderWithoutReplacingPanes() async throws {
@@ -47,6 +48,7 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         XCTAssertEqual(topology.windows.map(\.id), [1, 2, 0])
         XCTAssertEqual(topology.activeWindowID, 0)
         XCTAssertEqual(Set(topology.panes.map(\.id)), [0, 1, 2])
+        XCTAssertTrue(topology.panes.allSatisfy { $0.phase == .live })
     }
 
     func testWindowReorderInsertsLaterAndRetainsActiveWindowIdentity() async throws {

@@ -622,7 +622,15 @@ final class TmuxSessionController: @unchecked Sendable {
             windowOrder = ids
             if let previous = topology {
                 let snapshot = TopologySnapshot(sessionName: previous.sessionName,
-                    windows: orderedWindows(previous.windows), panes: previous.panes,
+                    windows: orderedWindows(previous.windows), panes: previous.panes.map { pane in
+                        // Native hydration completes with a terminal handoff,
+                        // without another topology event. Preserve that live
+                        // boundary when publishing a change to window order.
+                        PaneInfo(id: pane.id, windowID: pane.windowID, x: pane.x, y: pane.y,
+                            width: pane.width, height: pane.height, currentCommand: pane.currentCommand,
+                            currentPath: pane.currentPath,
+                            phase: retainedPaneIDs.contains(pane.id) ? .live : pane.phase)
+                    },
                     activeWindowID: previous.activeWindowID)
                 topology = snapshot
                 topologyRevision &+= 1

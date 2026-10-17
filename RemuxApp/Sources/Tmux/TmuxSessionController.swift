@@ -72,6 +72,7 @@ final class TmuxSessionController: @unchecked Sendable {
     enum Request: Equatable, Sendable {
         case newWindow
         case reorderWindow
+        case renameWindow
         case splitPane
         case closePane
         case closeWindow
@@ -869,6 +870,27 @@ final class TmuxSessionController: @unchecked Sendable {
         }
     }
 
+    static func windowRenameCommand(windowID: TmuxWindowID, name: String) -> String? {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.rangeOfCharacter(from: .controlCharacters) == nil else { return nil }
+        // rename-window expands formats even in a quoted argument. Escape #
+        // as well as tmux's single-quoted command syntax to keep names literal.
+        let literal = name.replacingOccurrences(of: "#", with: "##")
+            .replacingOccurrences(of: "'", with: "'\\''")
+        return "rename-window -t @\(windowID.rawValue) -- '\(literal)'"
+    }
+
+    func requestRenameWindow(windowID: TmuxWindowID, name: String) {
+        queue.async { [self] in
+            guard topology?.windows.contains(where: { $0.id == windowID }) == true,
+                  let command = Self.windowRenameCommand(windowID: windowID, name: name) else {
+                reportRequestFailure(.renameWindow)
+                return
+            }
+            enqueueOnWriter(command: command, request: .renameWindow, onSuccess: nil)
+        }
+    }
+
     func requestMoveWindow(windowID: TmuxWindowID, targetWindowID: TmuxWindowID) {
         queue.async { [self] in
             guard windowID != targetWindowID else { return }
@@ -1511,7 +1533,7 @@ final class TmuxSessionController: @unchecked Sendable {
         case .newWindow, .reorderWindow, .splitPane, .closePane, .closeWindow,
              .selectWindow, .selectPane, .zoomPane:
             true
-        case .copyMode, .setClientSize, .sendInput:
+        case .renameWindow, .copyMode, .setClientSize, .sendInput:
             false
         }
     }

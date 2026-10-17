@@ -30,6 +30,8 @@ struct GhosttyWindowSelectionSheet: View {
     @State private var pendingRemoval: GhosttyWindowRemovalRequest?
     @State private var isReordering = false
     @State private var dropTargetID: UUID?
+    @State private var pendingRename: UUID?
+    @State private var windowNameDraft = ""
 
     let projection: GhosttyWindowSelectionSheetRenderProjection
     let topLevelNoun: GhosttyTopLevelNoun
@@ -43,6 +45,7 @@ struct GhosttyWindowSelectionSheet: View {
     let onCreateWindow: (() -> Void)?
     let onSelect: (UUID) -> Void
     let onMoveWindow: (UUID, UUID) -> Void
+    let onRenameWindow: (UUID, String) -> Void
     let onRemoveWindow: (UUID) -> Void
 
     var body: some View {
@@ -114,6 +117,23 @@ struct GhosttyWindowSelectionSheet: View {
         .onChange(of: projection.windows.map(\.id)) { _, newValue in
             if let dropTargetID, !newValue.contains(dropTargetID) { self.dropTargetID = nil }
             if newValue.isEmpty { isReordering = false }
+            if let pendingRename, !newValue.contains(pendingRename) { self.pendingRename = nil }
+        }
+        .alert("Rename \(topLevelNoun.singular)", isPresented: Binding(
+            get: { pendingRename != nil },
+            set: { if !$0 { pendingRename = nil } }
+        ), presenting: pendingRename) { id in
+            TextField("Window name", text: $windowNameDraft)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("terminal.window.rename.name")
+            Button("Cancel", role: .cancel) { pendingRename = nil }
+            Button("Save") {
+                onRenameWindow(id, windowNameDraft)
+                pendingRename = nil
+            }
+            .disabled(windowNameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("terminal.window.rename.save")
         }
         .confirmationDialog(
             "Remove \(topLevelNoun.singular)?",
@@ -184,7 +204,7 @@ struct GhosttyWindowSelectionSheet: View {
                     .accessibilityIdentifier("terminal.window.tile.\(window.displayIndex)")
                     .accessibilityHint(isReordering
                         ? "Drag to reorder, or use Move Earlier and Move Later."
-                        : "Long-press to reorder or remove windows.")
+                        : "Long-press to rename, reorder, or remove windows.")
 
                     if isReordering {
                         tile.draggable(window.id.uuidString)
@@ -225,11 +245,20 @@ struct GhosttyWindowSelectionSheet: View {
                     }
 
                     if isReordering {
-                        GhosttySelectionContextActionButton(
-                            title: "Remove \(topLevelNoun.singular) \(window.displayIndex)",
-                            accessibilityIdentifier: "terminal.window.remove.\(window.displayIndex)",
-                            action: { pendingRemoval = request }
-                        )
+                        HStack(spacing: 0) {
+                            GhosttySelectionContextActionButton(
+                                title: "Rename \(topLevelNoun.singular) \(window.displayIndex)",
+                                accessibilityIdentifier: "terminal.window.rename.\(window.displayIndex)",
+                                action: { beginRename(window.id) },
+                                systemImage: "pencil",
+                                isDestructive: false
+                            )
+                            GhosttySelectionContextActionButton(
+                                title: "Remove \(topLevelNoun.singular) \(window.displayIndex)",
+                                accessibilityIdentifier: "terminal.window.remove.\(window.displayIndex)",
+                                action: { pendingRemoval = request }
+                            )
+                        }
                         .padding(4)
                         .transition(.scale(scale: 0.92).combined(with: .opacity))
                         .zIndex(1)
@@ -257,6 +286,7 @@ struct GhosttyWindowSelectionSheet: View {
                 }
                 .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isReordering)
                 .accessibilityAction(named: Text("Reorder Windows")) { isReordering = true }
+                .accessibilityAction(named: Text("Rename \(topLevelNoun.singular)")) { beginRename(window.id) }
                 .accessibilityAction(named: Text("Move Earlier")) { moveWindow(window.id, offset: -1) }
                 .accessibilityAction(named: Text("Move Later")) { moveWindow(window.id, offset: 1) }
                 .accessibilityAction(named: Text("Remove \(topLevelNoun.singular) \(window.displayIndex)")) {
@@ -286,6 +316,12 @@ struct GhosttyWindowSelectionSheet: View {
         isReordering = true
         Haptic.selection()
         onMoveWindow(id, projection.windows[index + offset].id)
+    }
+
+    private func beginRename(_ id: UUID) {
+        guard let window = projection.windows.first(where: { $0.id == id }) else { return }
+        windowNameDraft = window.displayName
+        pendingRename = id
     }
 
     private func windowRemovalMessage(for request: GhosttyWindowRemovalRequest) -> String {
@@ -505,15 +541,18 @@ private struct GhosttySelectionContextActionButton: View {
     let title: String
     let accessibilityIdentifier: String
     let action: () -> Void
+    var systemImage = "trash"
+    var isDestructive = true
 
     var body: some View {
         Button {
             Haptic.tap()
             action()
         } label: {
-            Image(systemName: "trash")
+            Image(systemName: systemImage)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(GhosttySelectionContextActionPalette.destructiveText)
+                .foregroundStyle(isDestructive
+                    ? GhosttySelectionContextActionPalette.destructiveText : TerminalSelectionSheetPalette.primary)
                 .frame(width: 44, height: 44)
                 .ghosttySelectionContextActionSurface()
         }

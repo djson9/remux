@@ -207,6 +207,46 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
+    func testWindowRenameSavesAndCancelLeavesNameUnchanged() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        launchSeededSimulatorTerminal()
+        app.buttons["terminal.windows"].tap()
+        let first = app.buttons["terminal.window.tile.1"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.press(forDuration: 0.7)
+        let rename = app.buttons["terminal.window.rename.1"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 3))
+        rename.tap()
+        let name = app.textFields["terminal.window.rename.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        XCTAssertEqual(name.value as? String, "window-0")
+        name.tap()
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
+        let save = app.buttons["terminal.window.rename.save"]
+        XCTAssertFalse(save.isEnabled)
+        name.typeText("Project Alpha")
+        save.tap()
+        let renamed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Project Alpha"), object: first)
+        XCTAssertEqual(XCTWaiter.wait(for: [renamed], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons["terminal.window.tile.2"].label.contains("window-1"))
+        rename.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        XCTAssertEqual(name.value as? String, "Project Alpha")
+        name.typeText(" Cancelled")
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertTrue(first.label.contains("Project Alpha"))
+        XCTAssertFalse(first.label.contains("Cancelled"))
+        attachScreenshot(named: "window-renamed")
+        app.buttons["terminal.windows.reorder.done"].tap()
+        app.buttons["terminal.windows.close"].tap()
+        app.buttons["terminal.windows"].tap()
+        XCTAssertTrue(first.waitForExistence(timeout: 3))
+        XCTAssertTrue(first.label.contains("Project Alpha"))
+        first.tap()
+        waitForLiveTerminalInputReady(timeout: 5)
+    }
+
     func testLongPressEnablesWindowDraggingAndDoneRestoresSelection() {
         app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
         launchSeededSimulatorTerminal()

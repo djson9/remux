@@ -645,20 +645,22 @@ struct RemuxAppDependencies: Sendable {
 /// keep their existing deterministic, read-only transcript.
 private actor WindowReorderUITestServer {
     private var order = [0, 1, 2]
+    private var names: [Int: String] = [:]
     private var commandNumber = 1 // The initial attach block is not a command.
 
     static func paneState(_ id: Int) -> String {
         "%\(id);83;44;0;0;1;;;;0;4294967295;4294967295;0;1;0;0;0;0;0;0;0;0;;;0;0;43;8,16;zsh;/home/demo\n"
     }
 
-    static func windowRecord(_ id: Int) -> String {
+    static func windowRecord(_ id: Int, name: String? = nil) -> String {
         let layout = String(format: "%04x,83x44,0,0,%d", 0xb7dd + id, id)
-        return "$42 @\(id) \(id == 0 ? 1 : 0) %\(id) 83 44 \(layout) \(layout) window-\(id)\n"
+        return "$42 @\(id) \(id == 0 ? 1 : 0) %\(id) 83 44 \(layout) \(layout) \(name ?? "window-\(id)")\n"
     }
 
     func respond(to data: Data) -> Data {
         var reply = ""
         var reordered = false
+        var notifications = ""
         for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
             for command in line.components(separatedBy: " ; ") {
                 commandNumber += 1
@@ -676,10 +678,19 @@ private actor WindowReorderUITestServer {
                         order.swapAt(sourceIndex, targetIndex)
                         reordered = true
                     }
+                } else if command.hasPrefix("rename-window -t @") {
+                    let fields = command.split(separator: " ", maxSplits: 4)
+                    if fields.count == 5, let id = Int(fields[2].dropFirst()), order.contains(id) {
+                        let name = String(fields[4].dropFirst().dropLast())
+                            .replacingOccurrences(of: "'\\''", with: "'")
+                            .replacingOccurrences(of: "##", with: "#")
+                        names[id] = name
+                        notifications += "%window-renamed @\(id) \(name)\n"
+                    }
                 } else if command == "list-windows -F '#{window_id}'" {
                     body = order.map { "@\($0)\n" }.joined()
                 } else if command.hasPrefix("list-windows "), command.contains("#{session_id}") {
-                    body = order.map(Self.windowRecord).joined()
+                    body = order.map { Self.windowRecord($0, name: names[$0]) }.joined()
                 } else if command.hasPrefix("list-panes -s ") {
                     body = order.map(Self.paneState).joined()
                 }
@@ -687,6 +698,7 @@ private actor WindowReorderUITestServer {
             }
         }
         if reordered { reply += "%session-window-changed $42 @0\n" }
+        reply += notifications
         return Data(reply.utf8)
     }
 }

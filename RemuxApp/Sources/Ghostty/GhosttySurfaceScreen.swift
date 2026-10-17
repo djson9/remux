@@ -2159,6 +2159,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 onCreateWindow: createTopLevelFromSelectionSheet,
                 onSelect: selectTopLevelFromSelectionSheet,
                 onMoveWindow: { id, targetID in model.moveTopLevel(id, to: targetID) },
+                onRenameWindow: { id, name in model.renameTopLevel(id, to: name) },
                 onRemoveWindow: closeTopLevelFromSelectionSheet
             )
 

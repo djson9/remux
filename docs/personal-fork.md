@@ -94,6 +94,12 @@ windows. Every card shows its existing removal button while editing; removal
 still asks for confirmation. VoiceOver offers Reorder Windows, Move Earlier,
 and Move Later actions.
 
+Tap a card's **pencil** button in editing mode to rename it. The name field
+starts with the current name; **Save** updates that tmux window, while **Cancel**
+keeps its existing name. Blank names are disabled. Renames survive reconnects
+and preserve window order, panes, selection, and per-window keyboard settings.
+VoiceOver also offers a Rename Window action.
+
 Ordering changes tmux's window order, so it survives reconnects and appears on
 other clients. Window identities, panes, and keyboard preferences
 stay attached to the same window. The active window is restored by identity

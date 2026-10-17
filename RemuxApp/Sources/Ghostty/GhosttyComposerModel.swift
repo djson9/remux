@@ -18,6 +18,24 @@ private struct GhosttyPhotoPickerTransfer: Transferable, Sendable {
     }
 }
 
+// A plain owner performs teardown without entering Swift's isolated-deinit
+// runtime path, which crashes under synchronous XCTest on iOS 26.2 and older
+// (swiftlang/swift#88036). Only the composer mutates this state; destruction
+// needs no actor hop because tasks and attachment snapshots are Sendable.
+private final class GhosttyComposerCleanupState {
+    var submissionTask: Task<Void, Never>?
+    var preparationTasks: [Task<Void, Never>] = []
+    var attachments: [GhosttyPendingAttachment] = []
+
+    deinit {
+        submissionTask?.cancel()
+        for task in preparationTasks {
+            task.cancel()
+        }
+        GhosttyAttachmentStagingStore.cleanup(attachments)
+    }
+}
+
 @MainActor
 struct GhosttyComposerSubmissionDestination {
     let workspaceID: UUID
@@ -77,7 +95,9 @@ final class GhosttyComposerModel: ObservableObject {
             clearStatusMessage()
         }
     }
-    @Published var attachments: [GhosttyPendingAttachment] = []
+    @Published var attachments: [GhosttyPendingAttachment] = [] {
+        didSet { cleanupState.attachments = attachments }
+    }
     @Published var statusMessage: String?
     @Published private(set) var isSubmitting = false
     @Published private var attachmentTransferState: AttachmentTransferState?
@@ -87,8 +107,15 @@ final class GhosttyComposerModel: ObservableObject {
     private var submissionController = GhosttyComposerSubmissionController()
     private var attachmentPreparationJobs: [
         GhosttyPendingAttachment.ID: AttachmentPreparationJob
-    ] = [:]
-    private var submissionTask: Task<Void, Never>?
+    ] = [:] {
+        didSet {
+            cleanupState.preparationTasks = attachmentPreparationJobs.values.compactMap(\.task)
+        }
+    }
+    private var submissionTask: Task<Void, Never>? {
+        didSet { cleanupState.submissionTask = submissionTask }
+    }
+    private let cleanupState = GhosttyComposerCleanupState()
     private var dictationObservation: AnyCancellable?
 
     init(
@@ -99,14 +126,6 @@ final class GhosttyComposerModel: ObservableObject {
         dictationObservation = dictationController.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-    }
-
-    isolated deinit {
-        submissionTask?.cancel()
-        for job in attachmentPreparationJobs.values {
-            job.task?.cancel()
-        }
-        GhosttyAttachmentStagingStore.cleanup(attachments)
     }
 
     var snapshot: GhosttyComposerSessionState {

@@ -66,3 +66,10 @@ xcodebuild build -project Remux.xcodeproj -scheme Remux \
 The fork includes a small Swift 6 compatibility fix: prewarm tracing calls hop
 directly to their MainActor method, avoiding an unnecessary closure capture of
 the detached task's weak reference. Prewarm scheduling behavior is preserved.
+
+Composer teardown uses a plain resource owner to cancel tasks and clean staged
+attachments. This avoids the isolated-deinitializer runtime crash reproduced by
+the synchronous composer tests on iOS 26.2. The matching Swift runtime issue is
+[swiftlang/swift#88036](https://github.com/swiftlang/swift/issues/88036).
+The existing synchronous tests remain enabled, alongside a staged-file cleanup
+regression test. Upgrading Xcode alone would not fix older supported iOS runtimes.

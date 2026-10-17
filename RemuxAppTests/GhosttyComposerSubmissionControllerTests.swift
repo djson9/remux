@@ -304,6 +304,25 @@ private struct FailingComposerAttachmentTransferService: GhosttyAttachmentTransf
 
 @MainActor
 final class GhosttyComposerModelStatusMessageTests: XCTestCase {
+    func testDeinitializationCleansStagedAttachments() async throws {
+        let url = try await GhosttyAttachmentStagingStore.stageData(
+            Data("cleanup regression".utf8), filename: "cleanup.txt"
+        )
+        weak var releasedComposer: GhosttyComposerModel?
+        do {
+            let composer = GhosttyComposerModel()
+            releasedComposer = composer
+            composer.attachments = [.file(url: url)]
+        }
+
+        XCTAssertNil(releasedComposer)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while FileManager.default.fileExists(atPath: url.path), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testEditingDraftClearsStatusMessage() {
         let composer = GhosttyComposerModel()
         composer.statusMessage = "Couldn’t send. Message kept."

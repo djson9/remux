@@ -519,9 +519,16 @@ private struct RemuxWorkspaceShell: View {
             }
             isSessionSwitcherPresented = false
             guard !composer.isSubmitting else { return }
-            if composer.dictationController.phase.isActive {
+            switch composer.dictationController.phase {
+            case .recording:
                 composer.isPresented = true
-            } else {
+                composer.finishDictation()
+            case .starting, .preparing:
+                composer.isPresented = true
+                composer.stopDictationImmediately()
+            case .transcribing:
+                composer.isPresented = true
+            case .idle:
                 composer.open()
                 composer.startDictation()
             }

@@ -60,11 +60,16 @@ on-device dictation. A cold launch resumes the most recently used saved session.
 Microphone and speech permissions are requested normally on first use.
 If no session has been configured, the app asks you to open one first.
 
-The same entry point is available at `remuxdev://record`. Repeated delivery
-leaves an active recording running, and pending requests are cancelled when the
-app enters the background. The normal on-screen stop and cancel controls remain
-available. CI checks both current-session and cold-launch flows with the debug
-dictation backend; the physical button assignment is made in iPhone Settings.
+Press the Action Button again to stop recording and keep the completed transcript
+in the composer. Another press can start a new recording. Pressing while dictation
+is still starting cancels startup; pressing while the final transcript is arriving
+leaves it to finish. The existing shortcut assignment keeps working after updates.
+
+The same entry point is available at `remuxdev://record`. Pending requests are
+cancelled when the app enters the background. The normal on-screen stop and
+cancel controls remain available. CI checks current-session and cold-launch
+start/stop flows with the debug dictation backend; the physical button assignment
+is made in iPhone Settings.
 
 ## Terminal tap keyboard setting
 

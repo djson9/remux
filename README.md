@@ -2,6 +2,9 @@
 
 > A native iOS client for remote tmux workspaces.
 
+This is Jay's personal fork. [Install the private iPhone build](https://jays-vm.tailade3f5.ts.net:8473/latest/)
+with Tailscale connected. See [fork development and automated releases](docs/personal-fork.md).
+
 <p align="center">
   <a href="https://trendshift.io/repositories/91075?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-91075" target="_blank" rel="noopener noreferrer">
     <img src="https://trendshift.io/api/badge/repositories/91075" alt="h3nock/remux | Trendshift" width="250" height="55" />

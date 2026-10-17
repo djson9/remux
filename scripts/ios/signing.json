@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "laneId": "remux-ota",
+  "runTimeoutSeconds": 3600,
+  "forwardEnvironment": ["DEVELOPER_DIR", "DEVICE_UDID"],
+  "phase": {
+    "development": {
+      "purpose": "development",
+      "credentialId": "team-development"
+    }
+  },
+  "artifacts": [
+    {
+      "id": "app",
+      "signerPhase": "development",
+      "kind": "app",
+      "bundleIdentifier": "com.davidjson.remux",
+      "entitlements": {"get-task-allow": true},
+      "profile": {
+        "required": true,
+        "requireProvisionedDevices": true,
+        "deviceUdidEnvironment": "DEVICE_UDID"
+      }
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+name: iOS private OTA
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: remux-ios-ota
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' ||
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: middesk-macos
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: ${{ vars.IOS_DEVELOPER_DIR }}
+      DEVICE_UDID: ${{ vars.IOS_DEVICE_UDID }}
+      REMUX_PROFILE_UUID: ${{ vars.IOS_PROFILE_UUID }}
+      OTA_BASE_URL: ${{ vars.OTA_BASE_URL }}
+      OTA_SSH_HOST: ${{ vars.OTA_SSH_HOST }}
+    steps:
+      - name: Check out the tested source
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Prepare build tools
+        run: |
+          echo '/opt/homebrew/bin' >> "$GITHUB_PATH"
+          echo "$HOME/.rbenv/versions/3.2.2/bin" >> "$GITHUB_PATH"
+          test -d "$DEVELOPER_DIR"
+
+      - name: Fetch and verify GhosttyKit
+        run: |
+          scripts/fetch_ghosttykit.sh
+          scripts/fetch_ghosttykit.sh --verify
+
+      - name: Verify generated project
+        run: |
+          xcodegen generate
+          git diff --exit-code -- Remux.xcodeproj RemuxApp/Info.plist
+
+      - name: Build, verify, and publish
+        run: |
+          build_number="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
+          python3 scripts/ios/release.py "$build_number" --publish
+          {
+            echo '### Remux OTA ready'
+            echo
+            echo "Install: $OTA_BASE_URL/latest/"
+          } >> "$GITHUB_STEP_SUMMARY"

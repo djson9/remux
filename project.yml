@@ -1,13 +1,13 @@
 name: Remux
 options:
-  bundleIdPrefix: dev.remux
+  bundleIdPrefix: com.davidjson.remux
   deploymentTarget:
     iOS: "18.0"
   postGenCommand: >-
     /usr/bin/perl -0pi -e 's/lastKnownFileType = wrapper\.icon;/lastKnownFileType = folder.iconcomposer.icon;/g' Remux.xcodeproj/project.pbxproj
 settings:
   base:
-    PRODUCT_BUNDLE_IDENTIFIER: dev.remux.app
+    PRODUCT_BUNDLE_IDENTIFIER: com.davidjson.remux
     PRODUCT_NAME: Remux
     MARKETING_VERSION: 0.1.0
     CURRENT_PROJECT_VERSION: 12
@@ -76,7 +76,7 @@ targets:
         embed: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.remux.appTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.davidjson.remux.tests
         PRODUCT_NAME: RemuxTests
         PRODUCT_MODULE_NAME: RemuxTests
         GENERATE_INFOPLIST_FILE: YES
@@ -90,7 +90,7 @@ targets:
       - target: Remux
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.remux.appUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.davidjson.remux.uitests
         PRODUCT_NAME: RemuxUITests
         PRODUCT_MODULE_NAME: RemuxUITests
         GENERATE_INFOPLIST_FILE: YES

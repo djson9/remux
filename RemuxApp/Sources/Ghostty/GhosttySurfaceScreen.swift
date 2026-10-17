@@ -682,6 +682,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
 
     private var shouldHandleTerminalKeyboardNotification: Bool {
         isSelected
+            && selectionSheet == nil
             && !isShortcutsSettingsPresented
             && shortcutEditorRequest == nil
             && attachmentPreviewRequest == nil
@@ -1625,6 +1626,12 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 },
                 sendEnter: {
                     await sendComposerEnter(to: surfaceID)
+                },
+                onSubmitted: {
+                    dismissComposerKeyboard()
+                    withAnimation(GhosttyKeyboardChromeAnimation.composerTransition) {
+                        composer.close()
+                    }
                 }
             )
         )
@@ -2159,6 +2166,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 onCreateWindow: createTopLevelFromSelectionSheet,
                 onSelect: selectTopLevelFromSelectionSheet,
                 onMoveWindow: { id, targetID in model.moveTopLevel(id, to: targetID) },
+                onRenameWindow: { id, name in model.renameTopLevel(id, to: name) },
                 onRemoveWindow: closeTopLevelFromSelectionSheet
             )
 

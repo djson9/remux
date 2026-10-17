@@ -47,6 +47,7 @@ struct GhosttyComposerSubmissionDestination {
     let prepareTerminalInput: () -> Void
     let sendPaste: (String) async -> Bool
     let sendEnter: () async -> Bool
+    let onSubmitted: () -> Void
 
     nonisolated static func label(sessionName: String?, windowName: String?) -> String? {
         let parts = [sessionName, windowName]
@@ -398,6 +399,7 @@ final class GhosttyComposerModel: ObservableObject {
             statusMessage = "Couldn’t send. Message kept."
         case .submitted:
             statusMessage = nil
+            destination.onSubmitted()
         case .pastedAwaitingSubmit:
             if let label = destination.destinationLabel {
                 statusMessage = "Couldn’t finish sending. Check “\(label)”."

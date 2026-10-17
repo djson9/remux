@@ -138,6 +138,9 @@ protocol GhosttyTerminalActionModeling: ObservableObject {
     func moveTopLevel(_ id: UUID, to targetID: UUID) -> GhosttyTerminalActionOutcome
 
     @discardableResult
+    func renameTopLevel(_ id: UUID, to name: String) -> GhosttyTerminalActionOutcome
+
+    @discardableResult
     func splitFocusedPane(
         _ direction: ghostty_action_split_direction_e
     ) -> GhosttyTerminalActionOutcome

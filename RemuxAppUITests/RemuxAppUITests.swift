@@ -207,6 +207,48 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
+    func testWindowRenameSavesAndCancelLeavesNameUnchanged() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        launchSeededSimulatorTerminal()
+        app.buttons["terminal.windows"].tap()
+        let first = app.buttons["terminal.window.tile.1"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        first.press(forDuration: 0.7)
+        let rename = app.buttons["terminal.window.rename.1"]
+        XCTAssertTrue(rename.waitForExistence(timeout: 3))
+        rename.tap()
+        let dialog = app.alerts["Rename Window"]
+        XCTAssertTrue(dialog.waitForExistence(timeout: 3))
+        let name = dialog.textFields.firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        XCTAssertEqual(name.value as? String, "window-0")
+        name.tap()
+        name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
+        let save = dialog.buttons["Save"].firstMatch
+        XCTAssertFalse(save.isEnabled)
+        name.typeText("Project Alpha")
+        save.tap()
+        let renamed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Project Alpha"), object: first)
+        XCTAssertEqual(XCTWaiter.wait(for: [renamed], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons["terminal.window.tile.2"].label.contains("window-1"))
+        rename.tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 3))
+        XCTAssertEqual(name.value as? String, "Project Alpha")
+        name.typeText(" Cancelled")
+        dialog.buttons["Cancel"].firstMatch.tap()
+        XCTAssertTrue(first.label.contains("Project Alpha"))
+        XCTAssertFalse(first.label.contains("Cancelled"))
+        attachScreenshot(named: "window-renamed")
+        app.buttons["terminal.windows.reorder.done"].tap()
+        app.buttons["terminal.windows.close"].tap()
+        app.buttons["terminal.windows"].tap()
+        XCTAssertTrue(first.waitForExistence(timeout: 3))
+        XCTAssertTrue(first.label.contains("Project Alpha"))
+        first.tap()
+        waitForLiveTerminalInputReady(timeout: 5)
+    }
+
     func testLongPressEnablesWindowDraggingAndDoneRestoresSelection() {
         app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
         launchSeededSimulatorTerminal()
@@ -237,6 +279,30 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertTrue(last.label.contains("window-0"))
         last.tap()
         XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.windows.sheet"], timeout: 3))
+    }
+
+    func testComposerSendClosesComposerAndKeyboard() {
+        app.launchEnvironment["REMUX_UI_TEST_REORDER_WINDOWS"] = "1"
+        launchSeededSimulatorTerminal()
+        let toggle = app.buttons["terminal.composer.toggle"]
+        toggle.tap()
+        let field = app.textViews["terminal.composer.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        field.tap()
+        XCTAssertNotNil(waitForKeyboardPresence(true, label: "composer keyboard before send"))
+        field.typeText("echo sent")
+        app.buttons["terminal.composer.send"].tap()
+
+        XCTAssertTrue(waitForElementToDisappear(field, timeout: 5))
+        XCTAssertTrue(waitForElementToDisappear(app.otherElements["terminal.composer.bounds"], timeout: 3))
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "keyboard dismissed after send"))
+        waitForLiveTerminalInputReady(timeout: 5)
+        attachScreenshot(named: "composer-and-keyboard-closed-after-send")
+
+        toggle.tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertEqual(field.value as? String, "")
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "reopened composer keeps keyboard hidden"))
     }
 
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
@@ -1965,21 +2031,21 @@ final class RemuxAppUITests: XCTestCase {
             return
         }
 
-        // Submit to the real tmux session; success clears the draft and
-        // restores the placeholder. The reversed token only appears in the
+        // Submit to the real tmux session; success closes the composer.
+        // The reversed token only appears in the
         // pane when the pasted command actually executed remotely.
         let send = app.buttons["terminal.composer.send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
-        let placeholder = app.staticTexts["terminal.composer.placeholder"]
+        let composerBounds = app.otherElements["terminal.composer.bounds"]
         let submitStart = Date()
         send.tap()
         let submitDeadline = Date().addingTimeInterval(20)
-        while Date() < submitDeadline, !placeholder.exists {
+        while Date() < submitDeadline, composerBounds.exists {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
         XCTAssertTrue(
-            placeholder.exists,
-            "Composer draft should clear after a successful live submit."
+            !composerBounds.exists,
+            "Composer should close after a successful live submit."
         )
         let submitMs = Date().timeIntervalSince(submitStart) * 1000
 

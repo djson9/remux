@@ -497,6 +497,7 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
         switch request {
         case .newWindow: "new window"
         case .reorderWindow: "reorder windows"
+        case .renameWindow: "rename window"
         case .splitPane: "split pane"
         case .closePane: "close pane"
         case .closeWindow: "close window"
@@ -804,6 +805,14 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
               let targetWindowID = identities.windowID(for: targetID),
               let controller else { return .missingTarget(.topLevel(id)) }
         controller.requestMoveWindow(windowID: windowID, targetWindowID: targetWindowID)
+        return .queued
+    }
+
+    func renameTopLevel(_ id: UUID, to name: String) -> GhosttyTerminalActionOutcome {
+        guard let windowID = identities.windowID(for: id), let controller else {
+            return .missingTarget(.topLevel(id))
+        }
+        controller.requestRenameWindow(windowID: windowID, name: name)
         return .queued
     }
 

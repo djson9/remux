@@ -71,6 +71,10 @@ cancel controls remain available. CI checks current-session and cold-launch
 start/stop flows with the debug dictation backend; the physical button assignment
 is made in iPhone Settings.
 
+After a successful **Send**, the composer and software keyboard both close.
+Rejected sends keep the draft available. If the text was pasted but Enter could
+not be confirmed, the composer stays open with the existing delivery status.
+
 ## Terminal tap keyboard setting
 
 In **Settings → Keyboard**, turn off **Show keyboard on terminal tap** to use
@@ -93,6 +97,12 @@ another to insert it at that position. Tap **Done** to return to selecting
 windows. Every card shows its existing removal button while editing; removal
 still asks for confirmation. VoiceOver offers Reorder Windows, Move Earlier,
 and Move Later actions.
+
+Tap a card's **pencil** button in editing mode to rename it. The name field
+starts with the current name; **Save** updates that tmux window, while **Cancel**
+keeps its existing name. Blank names are disabled. Renames survive reconnects
+and preserve window order, panes, selection, and per-window keyboard settings.
+VoiceOver also offers a Rename Window action.
 
 Ordering changes tmux's window order, so it survives reconnects and appears on
 other clients. Window identities, panes, and keyboard preferences

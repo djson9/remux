@@ -5,6 +5,61 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
+    func testWindowRenameCommandKeepsNamesLiteralAndRejectsInvalidInput() {
+        XCTAssertEqual(TmuxSessionController.windowRenameCommand(windowID: 7,
+            name: "  -Jay's #{window_id} #(no-job) ; $HOME \\ 🚀  "),
+            "rename-window -t @7 -- '-Jay'\\''s ##{window_id} ##(no-job) ; $HOME \\ 🚀'")
+        for name in ["", " \n ", "one\ntwo", "one\rtwo", "one\0two"] {
+            XCTAssertNil(TmuxSessionController.windowRenameCommand(windowID: 7, name: name))
+        }
+        XCTAssertNotNil(TmuxSessionController.windowRenameCommand(windowID: 7, name: "👩‍💻 Work"))
+    }
+
+    func testWindowRenameUsesIdentityAndAppliesServerConfirmation() async throws {
+        let recorder = ControllerTopologyRecorder()
+        let harness = try await readyController(listWindowsBody: Self.twoSinglePaneWindows, expectedPaneCount: 2,
+            callbacks: .init(onTopology: { recorder.append($0) }))
+        var number = harness.nextCommandNumber
+        harness.controller.requestRenameWindow(windowID: 1, name: "Project Alpha")
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(), "rename-window -t @1 -- 'Project Alpha'\n")
+        harness.controller.pump(Data((responseBlock(commandNumber: &number)
+            + "%window-renamed @1 Project Alpha\n").utf8))
+        await drain(harness.controller)
+        let topology = try XCTUnwrap(recorder.latest)
+        XCTAssertEqual(topology.windows.first(where: { $0.id == 1 })?.name, "Project Alpha")
+        XCTAssertEqual(topology.windows.map(\.id), [0, 1])
+        XCTAssertEqual(topology.activeWindowID, 0)
+        XCTAssertEqual(Set(topology.panes.map(\.id)), [0, 1])
+    }
+
+    func testWindowRenameRejectsATargetThatDisappeared() async throws {
+        let rejected = expectation(description: "stale rename target")
+        let harness = try await readyController(listWindowsBody: Self.twoSinglePaneWindows, expectedPaneCount: 2,
+            callbacks: .init(onRequestFailed: { request in
+                XCTAssertEqual(request, .renameWindow)
+                rejected.fulfill()
+            }))
+        harness.controller.requestRenameWindow(windowID: 999, name: "Project Alpha")
+        await fulfillment(of: [rejected], timeout: 1)
+        XCTAssertTrue(harness.recorder.takeStrings().isEmpty)
+    }
+
+    func testWindowRenameReportsServerRejection() async throws {
+        let rejected = expectation(description: "rename rejected")
+        let harness = try await readyController(listWindowsBody: Self.twoSinglePaneWindows, expectedPaneCount: 2,
+            callbacks: .init(onRequestFailed: { request in
+                XCTAssertEqual(request, .renameWindow)
+                rejected.fulfill()
+            }))
+        var number = harness.nextCommandNumber
+        harness.controller.requestRenameWindow(windowID: 1, name: "Project Alpha")
+        await drain(harness.controller)
+        _ = harness.recorder.takeStrings()
+        harness.controller.pump(Data(errorBlock(commandNumber: &number, body: "can't find window").utf8))
+        await fulfillment(of: [rejected], timeout: 1)
+    }
+
     func testWindowOrderRefreshLoadsExistingServerOrder() async throws {
         let topologyRecorder = ControllerTopologyRecorder()
         let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4,

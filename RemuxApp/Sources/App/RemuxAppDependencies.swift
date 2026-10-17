@@ -605,7 +605,8 @@ struct RemuxAppDependencies: Sendable {
         // pane_current_path, or the client rejects the attach.
         let paneState = (0..<windowCount).map { WindowReorderUITestServer.paneState($0) }.joined()
         let window = (0..<windowCount).map { WindowReorderUITestServer.windowRecord($0) }.joined()
-        let transcript = "%begin 1 1 0\n%end 1 1 0\n%session-changed $42 main\n"
+        let sessionName = DebugConnectionProfileSeeder.seededSessionName() ?? "main"
+        let transcript = "%begin 1 1 0\n%end 1 1 0\n%session-changed $42 \(sessionName)\n"
             + "%begin 2 2 1\n3.1\n%end 2 2 1\n"
             + "%begin 3 3 1\n%end 3 3 1\n"
             + "%begin 4 4 1\n\(window)%end 4 4 1\n"
@@ -646,15 +647,16 @@ struct RemuxAppDependencies: Sendable {
 private actor WindowReorderUITestServer {
     private var order = [0, 1, 2]
     private var names: [Int: String] = [:]
+    private var activeWindow = 0
     private var commandNumber = 1 // The initial attach block is not a command.
 
     static func paneState(_ id: Int) -> String {
         "%\(id);83;44;0;0;1;;;;0;4294967295;4294967295;0;1;0;0;0;0;0;0;0;0;;;0;0;43;8,16;zsh;/home/demo\n"
     }
 
-    static func windowRecord(_ id: Int, name: String? = nil) -> String {
+    static func windowRecord(_ id: Int, name: String? = nil, activeWindow: Int = 0) -> String {
         let layout = String(format: "%04x,83x44,0,0,%d", 0xb7dd + id, id)
-        return "$42 @\(id) \(id == 0 ? 1 : 0) %\(id) 83 44 \(layout) \(layout) \(name ?? "window-\(id)")\n"
+        return "$42 @\(id) \(id == activeWindow ? 1 : 0) %\(id) 83 44 \(layout) \(layout) \(name ?? "window-\(id)")\n"
     }
 
     func respond(to data: Data) -> Data {
@@ -667,6 +669,7 @@ private actor WindowReorderUITestServer {
                 // The initial three-window transcript already answers these.
                 guard commandNumber > 17 else { continue }
                 var body = ""
+                var failed = false
                 if command.hasPrefix("swap-window ") {
                     let args = command.split(separator: " ").map(String.init)
                     if let sourceFlag = args.firstIndex(of: "-s"),
@@ -677,6 +680,17 @@ private actor WindowReorderUITestServer {
                        let targetIndex = order.firstIndex(of: target), source != target {
                         order.swapAt(sourceIndex, targetIndex)
                         reordered = true
+                    }
+                } else if command.hasPrefix("select-window -t @"),
+                          let id = Int(command.split(separator: " ").last!.dropFirst()), order.contains(id) {
+                    activeWindow = id
+                    notifications += "%session-window-changed $42 @\(id)\n"
+                } else if command.hasPrefix("list-panes -t ") {
+                    if command.contains("'ui-test:2.0'") || command.contains("'=ui-test:@2.%2'") {
+                        body = "ui-test\t@2\t%2\t0\t1\n"
+                    } else {
+                        failed = true
+                        body = "can't find pane\n"
                     }
                 } else if command.hasPrefix("rename-window -t @") {
                     let fields = command.split(separator: " ", maxSplits: 4)
@@ -690,11 +704,11 @@ private actor WindowReorderUITestServer {
                 } else if command == "list-windows -F '#{window_id}'" {
                     body = order.map { "@\($0)\n" }.joined()
                 } else if command.hasPrefix("list-windows "), command.contains("#{session_id}") {
-                    body = order.map { Self.windowRecord($0, name: names[$0]) }.joined()
+                    body = order.map { Self.windowRecord($0, name: names[$0], activeWindow: activeWindow) }.joined()
                 } else if command.hasPrefix("list-panes -s ") {
                     body = order.map(Self.paneState).joined()
                 }
-                reply += "%begin \(commandNumber) \(commandNumber) 1\n\(body)%end \(commandNumber) \(commandNumber) 1\n"
+                reply += "%begin \(commandNumber) \(commandNumber) 1\n\(body)%\(failed ? "error" : "end") \(commandNumber) \(commandNumber) 1\n"
             }
         }
         if reordered { reply += "%session-window-changed $42 @0\n" }

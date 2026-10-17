@@ -217,7 +217,7 @@ final class TmuxSessionController: @unchecked Sendable {
         )
         case trackedInput(@Sendable (Bool) -> Void)
         case zoomMarks(@Sendable ([TmuxZoomMark]) -> Void)
-        case tapKeyboardSettings(@Sendable (String?) -> Void)
+        case stringQuery(@Sendable (String?) -> Void)
         case windowOrder
     }
 
@@ -341,7 +341,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingTapKeyboardSettings()
+            failOutstandingStringQueries()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -361,7 +361,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingTapKeyboardSettings()
+            failOutstandingStringQueries()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -379,7 +379,7 @@ final class TmuxSessionController: @unchecked Sendable {
             outboundSink = nil
             let directoryQueries = outstandingPaneDirectoryQueries()
             let trackedInputCompletions = outstandingTrackedInputCompletions()
-            failOutstandingTapKeyboardSettings()
+            failOutstandingStringQueries()
             requestsByToken.removeAll()
             directoryQueries.forEach { $0(.failure(.sessionUnavailable)) }
             trackedInputCompletions.forEach { $0(false) }
@@ -461,7 +461,7 @@ final class TmuxSessionController: @unchecked Sendable {
         case GHOSTTY_TMUX_ACTION_EXIT:
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingTapKeyboardSettings()
+            failOutstandingStringQueries()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -602,7 +602,7 @@ final class TmuxSessionController: @unchecked Sendable {
             }
             completionHandler(zoomOwner.marks(fromQueryReply: decodeTmuxString(completion.body)))
             return
-        case .tapKeyboardSettings(let completionHandler):
+        case .stringQuery(let completionHandler):
             completionHandler(completion.status == GHOSTTY_TMUX_COMMAND_SUCCESS
                 ? decodeTmuxString(completion.body) : nil)
             return
@@ -1074,8 +1074,30 @@ final class TmuxSessionController: @unchecked Sendable {
     func requestWindowTapKeyboardSettings(
         completion: @escaping @Sendable ([TmuxWindowID: WindowTapKeyboardBehavior]?) -> Void
     ) {
-        requestTapKeyboardSettings(command: TmuxWindowTapKeyboard.query) { reply in
+        requestStringQuery(command: TmuxWindowTapKeyboard.query) { reply in
             completion(reply.map { TmuxWindowTapKeyboard.settings(from: $0) })
+        }
+    }
+
+    static func paneTargetQuery(_ target: String) -> String? {
+        guard !target.isEmpty,
+              !target.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) else { return nil }
+        let literal = target.replacingOccurrences(of: "'", with: "'\\''")
+        // list-panes rejects missing targets; newer display-message versions
+        // can silently fall back to the current pane for an invalid -t.
+        return "list-panes -t '\(literal)' -F '#{session_name}\t#{window_id}\t#{pane_id}\t#{pane_index}\t#{pane_active}'"
+    }
+
+    func requestResolvePaneTarget(
+        _ target: String,
+        completion: @escaping @Sendable (TmuxResolvedPaneTarget?) -> Void
+    ) {
+        guard let command = Self.paneTargetQuery(target) else {
+            completion(nil)
+            return
+        }
+        requestStringQuery(command: command) { reply in
+            completion(reply.flatMap { TmuxResolvedPaneTarget.resolve(reply: $0, target: target) })
         }
     }
 
@@ -1084,12 +1106,12 @@ final class TmuxSessionController: @unchecked Sendable {
         behavior: WindowTapKeyboardBehavior,
         completion: @escaping @Sendable (Bool) -> Void
     ) {
-        requestTapKeyboardSettings(
+        requestStringQuery(
             command: TmuxWindowTapKeyboard.command(windowID: windowID, behavior: behavior)
         ) { reply in completion(reply != nil) }
     }
 
-    private func requestTapKeyboardSettings(
+    private func requestStringQuery(
         command: String,
         completion: @escaping @Sendable (String?) -> Void
     ) {
@@ -1103,18 +1125,18 @@ final class TmuxSessionController: @unchecked Sendable {
                 completion(nil)
                 return
             }
-            requestsByToken[token] = .tapKeyboardSettings(completion)
+            requestsByToken[token] = .stringQuery(completion)
             _ = drainOutbound()
         }
     }
 
-    private func failOutstandingTapKeyboardSettings() {
+    private func failOutstandingStringQueries() {
         let completions = requestsByToken.values.compactMap { request -> (@Sendable (String?) -> Void)? in
-            guard case .tapKeyboardSettings(let completion) = request else { return nil }
+            guard case .stringQuery(let completion) = request else { return nil }
             return completion
         }
         requestsByToken = requestsByToken.filter {
-            guard case .tapKeyboardSettings = $0.value else { return true }
+            guard case .stringQuery = $0.value else { return true }
             return false
         }
         completions.forEach { $0(nil) }
@@ -1796,7 +1818,7 @@ final class TmuxSessionController: @unchecked Sendable {
         guard !shuttingDown else { return }
         failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
         failOutstandingTrackedInput()
-        failOutstandingTapKeyboardSettings()
+        failOutstandingStringQueries()
         deferredNavigationIntent = nil
         deferredWindowZoomIntent = nil
         successfulMutationRequiredAfterRevision = nil

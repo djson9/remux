@@ -31,6 +31,8 @@ private struct RemuxRootContentView: View {
     @State private var composer: GhosttyComposerModel
     @State private var shortcutStore: ShortcutStore
     @State private var tailscaleSSHCheckRequests: [TailscaleSSHCheckRequest]
+    @State private var pendingTerminalLink: RemuxTerminalDeepLink?
+    @State private var terminalLinkError: String?
     private let tailscaleSSHCheckEvents: AsyncStream<TailscaleSSHCheckEvent>
 
     init(dependencies: RemuxAppDependencies) {
@@ -59,6 +61,8 @@ private struct RemuxRootContentView: View {
                     model: model,
                     composer: composer,
                     shortcutStore: shortcutStore,
+                    pendingTerminalLink: $pendingTerminalLink,
+                    terminalLinkError: $terminalLinkError,
                     tailscaleSSHCheckRequest: currentTailscaleSSHCheckRequest
                 )
 
@@ -74,7 +78,23 @@ private struct RemuxRootContentView: View {
         .onOpenURL { url in
             if RemuxVoiceComposerEntry.accepts(url) {
                 RemuxVoiceComposerEntry.shared.request()
+            } else if url.scheme?.lowercased() == "remuxdev", url.host?.lowercased() == "open" {
+                if let link = RemuxTerminalDeepLink(url: url) {
+                    terminalLinkError = nil
+                    pendingTerminalLink = link
+                } else {
+                    pendingTerminalLink = nil
+                    terminalLinkError = "This link needs a saved server and a session:window.pane target."
+                }
             }
+        }
+        .alert("Couldn’t Open Pane", isPresented: Binding(
+            get: { terminalLinkError != nil },
+            set: { if !$0 { terminalLinkError = nil } }
+        )) {
+            Button("OK", role: .cancel) { terminalLinkError = nil }
+        } message: {
+            Text(terminalLinkError ?? "")
         }
 #if DEBUG
         .overlay(alignment: .topTrailing) {
@@ -128,6 +148,8 @@ private struct RemuxWorkspaceShell: View {
     @ObservedObject var model: RemuxRootModel
     let composer: GhosttyComposerModel
     let shortcutStore: ShortcutStore
+    @Binding var pendingTerminalLink: RemuxTerminalDeepLink?
+    @Binding var terminalLinkError: String?
     @Binding var tailscaleSSHCheckRequest: TailscaleSSHCheckRequest?
     @State private var retainedTerminalID: SavedWorkspace.ID?
     @State private var isSessionSwitcherPresented = false
@@ -138,6 +160,7 @@ private struct RemuxWorkspaceShell: View {
     @State private var voiceEntryTask: Task<Void, Never>?
     @State private var voiceEntryRequestID: UUID?
     @State private var voiceEntryNeedsSession = false
+    @State private var terminalLinkTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -149,9 +172,11 @@ private struct RemuxWorkspaceShell: View {
                 RemuxAppLifecycleProjection(scenePhase: scenePhase).appLifecyclePhase
             )
             if scenePhase == .background {
+                cancelPendingTerminalLink()
                 cancelPendingVoiceEntry()
                 composer.stopDictationImmediately()
             } else if scenePhase == .active {
+                handlePendingTerminalLink()
                 handlePendingVoiceEntry()
             }
         }
@@ -160,15 +185,22 @@ private struct RemuxWorkspaceShell: View {
                 RemuxAppLifecycleProjection(scenePhase: newPhase).appLifecyclePhase
             )
             if newPhase == .background {
+                cancelPendingTerminalLink()
                 cancelPendingVoiceEntry()
                 composer.stopDictationImmediately()
             } else if newPhase == .active {
+                handlePendingTerminalLink()
                 handlePendingVoiceEntry()
             }
         }
         .onChange(of: voiceEntry.pendingRequestID, initial: true) { _, _ in
             handlePendingVoiceEntry()
         }
+        .onChange(of: pendingTerminalLink, initial: true) { _, link in
+            handlePendingTerminalLink()
+            if link == nil { handlePendingVoiceEntry() }
+        }
+        .onDisappear { cancelPendingTerminalLink() }
         .alert("Open a Session First", isPresented: $voiceEntryNeedsSession) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -520,6 +552,7 @@ private struct RemuxWorkspaceShell: View {
 
     private func handlePendingVoiceEntry() {
         guard scenePhase == .active,
+              pendingTerminalLink == nil,
               let requestID = voiceEntry.pendingRequestID,
               voiceEntryRequestID != requestID else { return }
         voiceEntryTask?.cancel()
@@ -528,7 +561,8 @@ private struct RemuxWorkspaceShell: View {
             let resumed = await model.resumeWorkspaceForVoiceEntry(
                 preferredWorkspaceID: visibleTerminalID
             )
-            guard !Task.isCancelled, voiceEntry.pendingRequestID == requestID else { return }
+            guard !Task.isCancelled, pendingTerminalLink == nil,
+                  voiceEntry.pendingRequestID == requestID else { return }
             voiceEntry.consume(requestID)
             guard resumed else {
                 voiceEntryNeedsSession = model.state == .library
@@ -556,6 +590,40 @@ private struct RemuxWorkspaceShell: View {
         voiceEntry.cancel()
         voiceEntryTask?.cancel()
         voiceEntryRequestID = nil
+    }
+
+    private func handlePendingTerminalLink() {
+        guard scenePhase == .active else { return }
+        terminalLinkTask?.cancel()
+        guard let link = pendingTerminalLink else {
+            terminalLinkTask = nil
+            return
+        }
+        voiceEntryTask?.cancel()
+        voiceEntryRequestID = nil
+        isSessionSwitcherPresented = false
+        terminalLinkTask = Task { @MainActor in
+            do {
+                guard !composer.isSubmitting else { throw RemuxTerminalDeepLink.OpenError.busy }
+                try await model.openTerminalLink(link)
+            } catch is CancellationError {
+                guard !Task.isCancelled, pendingTerminalLink == link else { return }
+                cancelPendingVoiceEntry()
+            } catch {
+                guard !Task.isCancelled, pendingTerminalLink == link else { return }
+                cancelPendingVoiceEntry()
+                terminalLinkError = error.localizedDescription
+            }
+            guard !Task.isCancelled, pendingTerminalLink == link else { return }
+            pendingTerminalLink = nil
+            terminalLinkTask = nil
+        }
+    }
+
+    private func cancelPendingTerminalLink() {
+        terminalLinkTask?.cancel()
+        terminalLinkTask = nil
+        pendingTerminalLink = nil
     }
 
     private func cancelSessionSetupIfNeeded() {

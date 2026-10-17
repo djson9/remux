@@ -181,6 +181,8 @@ struct GhosttyTopLevelNoun: Equatable, Sendable {
 protocol GhosttyTerminalSelectionModeling: ObservableObject {
     var topLevelNoun: GhosttyTopLevelNoun { get }
 
+    func currentPaneDeepLink(serverID: SavedServer.ID) -> URL?
+
     func refreshWindowTapKeyboardSettings()
     func tapKeyboardBehavior(inTopLevel id: UUID) -> WindowTapKeyboardBehavior
     func tapKeyboardBehavior(forSurfaceID id: UUID) -> WindowTapKeyboardBehavior

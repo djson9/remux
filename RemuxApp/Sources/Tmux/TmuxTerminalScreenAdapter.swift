@@ -780,18 +780,36 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
     private func requestWindowSelection(
         _ targetWindow: TmuxSessionController.WindowInfo,
         in topology: TmuxSessionController.TopologySnapshot,
-        controller: TmuxSessionController
+        controller: TmuxSessionController,
+        preferredPaneID: TmuxPaneID? = nil
     ) {
         pendingFocusedPaneID = nil
-        if topology.activeWindowID != targetWindow.id,
-           let targetPaneID = targetWindow.activePaneID {
+        let targetPaneID = preferredPaneID ?? targetWindow.activePaneID
+        if let targetPaneID,
+           topology.activeWindowID != targetWindow.id || targetPaneID != effectiveFocusedPaneID {
             session?.prepareForPaneSelection(paneID: targetPaneID)
         }
 
         controller.requestSelectWindow(
             windowID: targetWindow.id,
-            preferredPaneID: targetWindow.activePaneID
+            preferredPaneID: targetPaneID
         )
+    }
+
+    func focusLinkedPane(_ target: TmuxResolvedPaneTarget) -> Bool {
+        guard let controller, let topology = latestTopology,
+              topology.sessionName == target.sessionName,
+              let window = topology.windows.first(where: { $0.id == target.windowID }),
+              topology.panes.contains(where: { $0.id == target.paneID && $0.windowID == target.windowID }) else { return false }
+        requestWindowSelection(window, in: topology, controller: controller, preferredPaneID: target.paneID)
+        return true
+    }
+
+    func currentPaneDeepLink(serverID: SavedServer.ID) -> URL? {
+        guard let topology = latestTopology, let windowID = topology.activeWindowID,
+              let paneID = effectiveFocusedPaneID else { return nil }
+        return RemuxTerminalDeepLink(server: serverID.uuidString,
+            target: "=\(topology.sessionName):@\(windowID).%\(paneID)").url
     }
 
     func createTopLevel() -> GhosttyTerminalActionOutcome {

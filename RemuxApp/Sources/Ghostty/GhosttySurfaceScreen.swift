@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 
 struct GhosttySurfaceScreenPresentation: Equatable {
     let workspaceID: SavedWorkspace.ID
+    let serverID: SavedServer.ID
     let sessionName: String
     let terminalTheme: TerminalTheme
     let toolbarKeys: TerminalToolbarKeys
@@ -2176,6 +2177,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 topLevelNoun: model.topLevelNoun,
                 topologySize: paneTopologySize,
                 commandFailureMessage: selectionSheetCommandFailureMessage,
+                currentPaneLink: model.currentPaneDeepLink(serverID: presentation.serverID),
                 onSplitPane: {
                     splitFocusedPaneFromSelectionSheet(
                         topLevelID: topLevelID,

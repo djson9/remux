@@ -102,6 +102,7 @@ struct ActiveTerminalScreenEntry: Identifiable {
         self.runtimeAttemptKey = TerminalRuntimeAttemptKey(session: session)
         self.presentation = GhosttySurfaceScreenPresentation(
             workspaceID: session.target.workspace.id,
+            serverID: session.target.server.id,
             sessionName: session.target.workspace.sessionName,
             terminalTheme: session.target.terminalSettings.theme,
             toolbarKeys: session.target.terminalSettings.toolbarKeys,
@@ -1228,6 +1229,84 @@ final class RemuxRootModel: ObservableObject {
         guard state == .library, let (_, workspace) = library.latestProfile else { return false }
         await connect(to: workspace.id)
         return state == .terminal(workspace.id)
+    }
+
+    @MainActor
+    private final class PaneLinkResolution {
+        var result: TmuxResolvedPaneTarget?
+        var completed = false
+    }
+
+    func openTerminalLink(_ link: RemuxTerminalDeepLink) async throws {
+        guard connectionSetup == nil else { throw RemuxTerminalDeepLink.OpenError.busy }
+        let matches = library.servers.filter {
+            $0.id.uuidString.caseInsensitiveCompare(link.server) == .orderedSame
+                || $0.host.caseInsensitiveCompare(link.server) == .orderedSame
+        }
+        guard let server = matches.first else { throw RemuxTerminalDeepLink.OpenError.savedServer }
+        guard matches.count == 1 else { throw RemuxTerminalDeepLink.OpenError.ambiguousServer }
+
+        if let active = activeSessions.first(where: {
+            $0.target.server.id == server.id && $0.target.workspace.sessionName == link.sessionName
+        }) {
+            showActiveSession(active.id)
+        } else {
+            // Links open an existing tmux session; a stale link must not create one.
+            await refreshTmuxSessionsAndWait(for: server.id)
+            try Task.checkCancellation()
+            let discovery = tmuxSessionDiscoveryState(for: server.id)
+            guard discovery.phase == .loaded else { throw RemuxTerminalDeepLink.OpenError.connection }
+            guard discovery.sessionNames.contains(link.sessionName) else { throw RemuxTerminalDeepLink.OpenError.missingSession }
+            await connectToDiscoveredSession(named: link.sessionName, on: server.id)
+        }
+        try Task.checkCancellation()
+        guard case .terminal(let workspaceID) = state,
+              let active = activeSessions.first(where: { $0.id == workspaceID }),
+              active.target.server.id == server.id,
+              active.target.workspace.sessionName == link.sessionName else { throw RemuxTerminalDeepLink.OpenError.connection }
+        let screen = terminalScreenModel(for: active)
+        let resolution = PaneLinkResolution()
+        var requested = false
+        var selected = false
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(30))
+        while clock.now < deadline {
+            try Task.checkCancellation()
+            guard state == .terminal(workspaceID) else { throw CancellationError() }
+            guard activeSessions.first(where: { $0.id == workspaceID })?.instanceID == active.instanceID,
+                  screen.startupFailure == nil,
+                  activeSessions.first(where: { $0.id == workspaceID })?.runtimeState.disconnectedReason == nil else {
+                throw RemuxTerminalDeepLink.OpenError.connection
+            }
+            if let session = screen.session, session.state == .ready {
+                if !requested {
+                    requested = true
+                    session.controller.requestResolvePaneTarget(link.target) { target in
+                        Task { @MainActor in
+                            resolution.result = target
+                            resolution.completed = true
+                        }
+                    }
+                }
+                if resolution.completed {
+                    guard let target = resolution.result, target.sessionName == link.sessionName else {
+                        throw RemuxTerminalDeepLink.OpenError.missingPane
+                    }
+                    if !selected {
+                        guard screen.terminalScreenAdapter.focusLinkedPane(target) else { throw RemuxTerminalDeepLink.OpenError.missingPane }
+                        selected = true
+                    }
+                    if let topology = session.topology,
+                       topology.activeWindowID == target.windowID,
+                       topology.windows.first(where: { $0.id == target.windowID })?.activePaneID == target.paneID,
+                       screen.terminalScreenAdapter.terminalInteractionProjection.isInputAvailable {
+                        return
+                    }
+                }
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        throw RemuxTerminalDeepLink.OpenError.timeout
     }
 
     func connect(to workspaceID: SavedWorkspace.ID) async {

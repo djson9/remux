@@ -59,7 +59,7 @@ jobs:
           build_number="$((GITHUB_RUN_NUMBER * 100 + GITHUB_RUN_ATTEMPT))"
           python3 scripts/ios/release.py "$build_number" --publish
           {
-            echo '### Remux OTA ready'
+            echo '### Remux Dev OTA ready'
             echo
             echo "Install: $OTA_BASE_URL/latest/"
           } >> "$GITHUB_STEP_SUMMARY"

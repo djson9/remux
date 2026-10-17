@@ -1211,6 +1211,24 @@ final class RemuxRootModel: ObservableObject {
         return updated
     }
 
+    /// Uses an existing terminal immediately; cold launches reopen the last
+    /// saved workspace without waiting for the SSH connection to become ready.
+    func resumeWorkspaceForVoiceEntry(preferredWorkspaceID: SavedWorkspace.ID? = nil) async -> Bool {
+        guard connectionSetup == nil else { return false }
+        if case .terminal(let id) = state,
+           activeSessions.contains(where: { $0.id == id }) {
+            return true
+        }
+        if let session = activeSessions.first(where: { $0.id == preferredWorkspaceID })
+            ?? activeSessions.first {
+            showActiveSession(session.id)
+            return true
+        }
+        guard state == .library, let (_, workspace) = library.latestProfile else { return false }
+        await connect(to: workspace.id)
+        return state == .terminal(workspace.id)
+    }
+
     func connect(to workspaceID: SavedWorkspace.ID) async {
         guard
             let workspace = library.workspace(id: workspaceID),

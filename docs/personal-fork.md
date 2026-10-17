@@ -4,7 +4,8 @@ The fork is [djson9/remux](https://github.com/djson9/remux), based on
 [h3nock/remux](https://github.com/h3nock/remux). The MIT license and upstream
 history are preserved. `origin` points to the fork and `upstream` to the original.
 
-The app uses `com.davidjson.remux`, so it can coexist with upstream Remux.
+The app is named **Remux Dev** and uses `com.davidjson.remux`, so it can coexist
+with upstream Remux. The OTA installer uses the built app's display name.
 `project.yml` remains the source of truth for the checked-in Xcode project.
 Use XcodeGen 2.46.0 and Xcode 26.3 or a compatible newer toolchain.
 
@@ -49,6 +50,21 @@ The publisher checks the served IPA's SHA-256 before exposing the latest page.
 The latest manifest also points to the immutable IPA, keeping upgrades coherent.
 Private signing receipts and packages are retained under `~/.local/share/remux/releases/` on
 the runner, and each published release includes its receipt and source metadata.
+
+## Action Button recording
+
+Open a session in Remux Dev once. On your iPhone, go to **Settings → Action
+Button → Shortcut**, choose **Remux Dev**, then **Record in Composer**.
+The shortcut opens the current session's composer and starts the existing
+on-device dictation. A cold launch resumes the most recently used saved session.
+Microphone and speech permissions are requested normally on first use.
+If no session has been configured, the app asks you to open one first.
+
+The same entry point is available at `remuxdev://record`. Repeated delivery
+leaves an active recording running, and pending requests are cancelled when the
+app enters the background. The normal on-screen stop and cancel controls remain
+available. CI checks both current-session and cold-launch flows with the debug
+dictation backend; the physical button assignment is made in iPhone Settings.
 
 ## Local validation
 

@@ -25,10 +25,12 @@ def package(directory, base_url, revision):
         raise ValueError("Expected a positive build number")
     if info["CFBundleIdentifier"] != "com.davidjson.remux":
         raise ValueError("Unexpected application identifier")
+    display_name = info.get("CFBundleDisplayName", "Remux Dev")
     ipa = directory / "Remux.ipa"
     digest = hashlib.sha256(ipa.read_bytes()).hexdigest()
     release_url = f"{base_url.rstrip('/')}/{build}"
     metadata = {
+        "displayName": display_name,
         "bundleIdentifier": info["CFBundleIdentifier"],
         "marketingVersion": info["CFBundleShortVersionString"],
         "buildNumber": build,
@@ -40,14 +42,14 @@ def package(directory, base_url, revision):
     }
     manifest = {"items": [{"assets": [{"kind": "software-package", "url": metadata["ipaUrl"]}], "metadata": {
         "bundle-identifier": metadata["bundleIdentifier"], "bundle-version": build,
-        "kind": "software", "title": "Remux"
+        "kind": "software", "title": display_name
     }}]}
     (directory / "manifest.plist").write_bytes(plistlib.dumps(manifest))
     (directory / "release-metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     install_url = "itms-services://?action=download-manifest&url=" + quote(release_url + "/manifest.plist", safe="")
     page = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#111718"><title>Install Remux</title>
+<meta name="theme-color" content="#111718"><title>Install {html.escape(display_name)}</title>
 <style>
 *{{box-sizing:border-box}}body{{margin:0;background:#111718;color:#e9f0e9;font:17px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;padding:8vh 24px}}
 main{{max-width:520px;margin:auto}}.mark{{color:#9dec9c;font:600 25px ui-monospace,monospace;letter-spacing:-2px}}
@@ -56,11 +58,11 @@ h1{{font-size:56px;line-height:1.1;letter-spacing:-2px;margin:10px 0 22px}}p{{co
 .install{{display:block;background:#9dec9c;color:#112015;text-decoration:none;border-radius:14px;text-align:center;padding:16px;font-weight:650;margin:34px 0 20px}}
 .details{{border-top:1px solid #2b3630;margin-top:36px;padding-top:20px;font-size:14px;color:#a3afa5}}code{{font:13px ui-monospace,monospace}}
 footer{{margin-top:40px;font-size:13px;color:#7d8c82}}.hint{{font-size:14px}}
-</style></head><body><main><div class="mark">[ remux ]</div>
+</style></head><body><main><div class="mark">[ {html.escape(display_name.lower())} ]</div>
 <div class="eyebrow">Your private build</div><h1>Your terminal.<br>In your pocket.</h1>
 <p>Connect to your servers and pick up your tmux sessions from your iPhone.</p>
-<a class="install" href="{html.escape(install_url, quote=True)}">Install Remux on iPhone</a>
-<p class="hint">Open this page in Safari with Tailscale connected. Confirm Install, then open Remux from your Home Screen. Developer Mode must be enabled.</p>
+<a class="install" href="{html.escape(install_url, quote=True)}">Install {html.escape(display_name)} on iPhone</a>
+<p class="hint">Open this page in Safari with Tailscale connected. Confirm Install, then open {html.escape(display_name)} from your Home Screen. Developer Mode must be enabled.</p>
 <div class="details">Version {html.escape(metadata['marketingVersion'])} · Build {build}<br>
 Source <a href="https://github.com/djson9/remux/commit/{revision}"><code>{revision[:12]}</code></a><br>
 Built {metadata['builtAt'][:10]} · <a href="{html.escape(metadata['ipaUrl'], quote=True)}">Download IPA</a></div>

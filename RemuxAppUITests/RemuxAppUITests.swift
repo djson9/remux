@@ -317,6 +317,7 @@ final class RemuxAppUITests: XCTestCase {
         app.buttons["uitest.voice-shortcut"].tap()
         XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
         XCTAssertEqual(app.textViews["terminal.composer.field"].value as? String, "Linked pane recording")
+        app.buttons["terminal.composer.toggle"].tap()
         XCTAssertEqual(windows.label, "Window 3 of 3")
         attachScreenshot(named: "deep-link-pane-ready-for-recording")
     }

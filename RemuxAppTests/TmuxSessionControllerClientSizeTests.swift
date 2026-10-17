@@ -5,6 +5,23 @@ import XCTest
 
 @MainActor
 final class TmuxSessionControllerClientSizeTests: XCTestCase {
+    func testWindowOrderRefreshLoadsExistingServerOrder() async throws {
+        let topologyRecorder = ControllerTopologyRecorder()
+        let harness = try await readyController(listWindowsBody: Self.twoZoomedWindows, expectedPaneCount: 4,
+            callbacks: .init(onTopology: { topologyRecorder.append($0) }))
+        topologyRecorder.clear()
+        var number = harness.nextCommandNumber
+        harness.controller.requestRefreshWindowOrder()
+        await drain(harness.controller)
+        XCTAssertEqual(harness.recorder.takeStrings().joined(), "list-windows -F '#{window_id}'\n")
+        harness.controller.pump(Data(responseBlock(commandNumber: &number, body: "@1\n@0\n").utf8))
+        await drain(harness.controller)
+        let topology = try XCTUnwrap(topologyRecorder.latest)
+        XCTAssertEqual(topology.windows.map(\.id), [1, 0])
+        XCTAssertEqual(topology.activeWindowID, 0)
+        XCTAssertEqual(topology.panes.count, 4)
+    }
+
     func testWindowReorderRefreshesAuthoritativeOrderWithoutReplacingPanes() async throws {
         let records = (0...2).map { id in
             Self.windowRecord(id: id, active: id == 0, paneID: id,
@@ -20,13 +37,11 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 2)
         await drain(harness.controller)
         XCTAssertEqual(harness.recorder.takeStrings().joined(),
-            "swap-window -d -s @0 -t @1 ; swap-window -d -s @0 -t @2 ; select-window -t @0\n")
+            "swap-window -d -s @0 -t @1 ; swap-window -d -s @0 -t @2 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
         let completed = (0..<3).map { _ in responseBlock(commandNumber: &number) }.joined()
-        harness.controller.pump(Data((completed + "%session-window-changed $42 @0\n").utf8))
-        await drain(harness.controller)
-        XCTAssertTrue(harness.recorder.takeStrings().joined().contains("list-windows -F"))
+        harness.controller.pump(Data(completed.utf8))
         harness.controller.pump(Data(responseBlock(commandNumber: &number,
-            body: records[1] + records[2] + records[0]).utf8))
+            body: "@1\n@2\n@0\n").utf8))
         await drain(harness.controller)
         let topology = try XCTUnwrap(topologyRecorder.latest)
         XCTAssertEqual(topology.windows.map(\.id), [1, 2, 0])
@@ -39,7 +54,7 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         harness.controller.requestMoveWindow(windowID: 0, targetWindowID: 1)
         await drain(harness.controller)
         XCTAssertEqual(harness.recorder.takeStrings().joined(),
-                       "swap-window -d -s @0 -t @1 ; select-window -t @0\n")
+                       "swap-window -d -s @0 -t @1 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
     }
 
     func testWindowReorderInsertsEarlierAndRetainsActiveWindowIdentity() async throws {
@@ -47,7 +62,7 @@ final class TmuxSessionControllerClientSizeTests: XCTestCase {
         harness.controller.requestMoveWindow(windowID: 1, targetWindowID: 0)
         await drain(harness.controller)
         XCTAssertEqual(harness.recorder.takeStrings().joined(),
-                       "swap-window -d -s @1 -t @0 ; select-window -t @0\n")
+                       "swap-window -d -s @1 -t @0 ; select-window -t @0\nlist-windows -F '#{window_id}'\n")
     }
 
     func testWindowReorderOntoItselfDoesNothing() async throws {

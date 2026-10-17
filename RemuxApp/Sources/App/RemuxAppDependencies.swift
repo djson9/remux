@@ -676,6 +676,8 @@ private actor WindowReorderUITestServer {
                         order.swapAt(sourceIndex, targetIndex)
                         reordered = true
                     }
+                } else if command == "list-windows -F '#{window_id}'" {
+                    body = order.map { "@\($0)\n" }.joined()
                 } else if command.hasPrefix("list-windows "), command.contains("#{session_id}") {
                     body = order.map(Self.windowRecord).joined()
                 } else if command.hasPrefix("list-panes -s ") {

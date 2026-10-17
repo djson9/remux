@@ -1071,6 +1071,7 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
     }
 
     func refreshWindowTapKeyboardSettings() {
+        controller?.requestRefreshWindowOrder()
         guard let controller, latestTopology != nil, !isLoadingWindowTapKeyboardSettings else { return }
         isLoadingWindowTapKeyboardSettings = true
         let revision = tapKeyboardRevision

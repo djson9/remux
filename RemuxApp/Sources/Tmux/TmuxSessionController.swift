@@ -217,6 +217,7 @@ final class TmuxSessionController: @unchecked Sendable {
         case trackedInput(@Sendable (Bool) -> Void)
         case zoomMarks(@Sendable ([TmuxZoomMark]) -> Void)
         case tapKeyboardSettings(@Sendable (String?) -> Void)
+        case windowOrder
     }
 
     let queue: DispatchQueue
@@ -227,6 +228,7 @@ final class TmuxSessionController: @unchecked Sendable {
     private var client: ghostty_tmux_client_t?
     private var state: SessionState = .detached(nil)
     private var topology: TopologySnapshot?
+    private var windowOrder: [TmuxWindowID] = []
     private var clientSize: ClientSize?
     private var retainedPaneIDs: Set<TmuxPaneID> = []
     private var surfacesByPaneID: [TmuxPaneID: TerminalSurfaceHandle] = [:]
@@ -513,7 +515,7 @@ final class TmuxSessionController: @unchecked Sendable {
 
         let snapshot = TopologySnapshot(
             sessionName: decodeTmuxString(action.session_name),
-            windows: accumulator.windows,
+            windows: orderedWindows(accumulator.windows),
             panes: accumulator.panes,
             activeWindowID: accumulator.windows.first(where: \.active)?.id
         )
@@ -602,6 +604,34 @@ final class TmuxSessionController: @unchecked Sendable {
         case .tapKeyboardSettings(let completionHandler):
             completionHandler(completion.status == GHOSTTY_TMUX_COMMAND_SUCCESS
                 ? decodeTmuxString(completion.body) : nil)
+            return
+        case .windowOrder:
+            guard completion.status == GHOSTTY_TMUX_COMMAND_SUCCESS else {
+                reportRequestFailure(.reorderWindow)
+                return
+            }
+            let lines = decodeTmuxString(completion.body).split(whereSeparator: \.isNewline)
+            let ids = lines.compactMap { line -> TmuxWindowID? in
+                guard line.first == "@", let id = UInt64(line.dropFirst()) else { return nil }
+                return TmuxWindowID(id)
+            }
+            guard ids.count == lines.count, Set(ids).count == ids.count else {
+                reportRequestFailure(.reorderWindow)
+                return
+            }
+            windowOrder = ids
+            if let previous = topology {
+                let snapshot = TopologySnapshot(sessionName: previous.sessionName,
+                    windows: orderedWindows(previous.windows), panes: previous.panes,
+                    activeWindowID: previous.activeWindowID)
+                topology = snapshot
+                topologyRevision &+= 1
+                clearSatisfiedMutationBarrier()
+                if snapshot != previous {
+                    DispatchQueue.main.async { self.callbacks.onTopology(snapshot) }
+                }
+                admitDeferredMutationsIfPossible()
+            }
             return
         case .action(let request, let topologyRevisionAtSubmission, let onSuccess):
             handleActionCompletion(
@@ -852,7 +882,26 @@ final class TmuxSessionController: @unchecked Sendable {
             // Swapping indices can change the selected identity, even with -d.
             commands.append("select-window -t @\(activeWindowID.rawValue)")
             enqueueGroupOnWriter(commands: commands, request: .reorderWindow)
+            refreshWindowOrderOnWriter()
         }
+    }
+
+    func requestRefreshWindowOrder() {
+        queue.async { [self] in refreshWindowOrderOnWriter() }
+    }
+
+    private func refreshWindowOrderOnWriter() {
+        guard let client, outboundSink != nil, !shuttingDown else { return }
+        let (result, token) = enqueueCommandTokenOnWriter("list-windows -F '#{window_id}'", client: client)
+        guard result == GHOSTTY_TMUX_RESULT_OK else { return }
+        requestsByToken[token] = .windowOrder
+        _ = drainOutbound()
+    }
+
+    private func orderedWindows(_ windows: [WindowInfo]) -> [WindowInfo] {
+        let byID = Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0) })
+        let orderedIDs = Set(windowOrder)
+        return windowOrder.compactMap { byID[$0] } + windows.filter { !orderedIDs.contains($0.id) }
     }
 
     func requestSplit(

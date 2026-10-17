@@ -21,6 +21,9 @@ struct RemuxDictationSettingsView: View {
             if engine == RemuxDictationEngine.parakeet.rawValue {
                 Section {
                     LabeledContent("Model", value: "Parakeet TDT v2 · INT8")
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("dictation.model")
+                        .accessibilityValue("Parakeet TDT v2 · INT8")
                     statusView
                     if !status.isPreparing && status != .ready {
                         Button("Download / Load Parakeet") {

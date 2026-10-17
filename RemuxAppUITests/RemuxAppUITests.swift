@@ -172,7 +172,9 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertTrue(dictation.waitForExistence(timeout: 3))
         dictation.tap()
         app.segmentedControls["dictation.engine"].buttons["Parakeet"].tap()
-        XCTAssertTrue(app.staticTexts["Parakeet TDT v2 · INT8"].waitForExistence(timeout: 3))
+        let model = app.descendants(matching: .any)["dictation.model"]
+        XCTAssertTrue(model.waitForExistence(timeout: 3))
+        XCTAssertEqual(model.value as? String, "Parakeet TDT v2 · INT8")
         XCTAssertTrue(app.buttons["dictation.prepare-parakeet"].exists)
         attachScreenshot(named: "parakeet-dictation-settings")
         app.navigationBars["Dictation"].buttons.firstMatch.tap()

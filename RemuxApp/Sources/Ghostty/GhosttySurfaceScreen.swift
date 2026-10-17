@@ -682,6 +682,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
 
     private var shouldHandleTerminalKeyboardNotification: Bool {
         isSelected
+            && selectionSheet == nil
             && !isShortcutsSettingsPresented
             && shortcutEditorRequest == nil
             && attachmentPreviewRequest == nil

@@ -224,7 +224,7 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertEqual(name.value as? String, "window-0")
         name.tap()
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8))
-        let save = dialog.buttons["Save"]
+        let save = dialog.buttons["Save"].firstMatch
         XCTAssertFalse(save.isEnabled)
         name.typeText("Project Alpha")
         save.tap()
@@ -236,7 +236,7 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 3))
         XCTAssertEqual(name.value as? String, "Project Alpha")
         name.typeText(" Cancelled")
-        app.alerts.buttons["Cancel"].tap()
+        dialog.buttons["Cancel"].firstMatch.tap()
         XCTAssertTrue(first.label.contains("Project Alpha"))
         XCTAssertFalse(first.label.contains("Cancelled"))
         attachScreenshot(named: "window-renamed")

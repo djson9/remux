@@ -182,34 +182,33 @@ struct GhosttyWindowSelectionSheet: View {
                 )
 
                 ZStack(alignment: .topTrailing) {
-                    let tile = Button {
-                        guard !isReordering else { return }
-                        Haptic.selection()
-                        onSelect(window.id)
-                    } label: {
-                        GhosttyWindowSelectionTile(
-                            topLevelNoun: topLevelNoun,
-                            displayIndex: window.displayIndex,
-                            displayName: window.displayName,
-                            totalCount: window.totalCount,
-                            paneCount: window.paneCount,
-                            isSelected: window.isSelected,
-                            previewState: window.focusedPreviewPaneID
-                                .flatMap { session.imagesByPaneID[$0] },
-                            chromeStyle: chromeStyle,
-                            layout: layout
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("terminal.window.tile.\(window.displayIndex)")
-                    .accessibilityHint(isReordering
-                        ? "Drag to reorder, or use Move Earlier and Move Later."
-                        : "Long-press to rename, reorder, or remove windows.")
+                    let preview = GhosttyWindowSelectionTile(
+                        topLevelNoun: topLevelNoun,
+                        displayIndex: window.displayIndex,
+                        displayName: window.displayName,
+                        totalCount: window.totalCount,
+                        paneCount: window.paneCount,
+                        isSelected: window.isSelected,
+                        previewState: window.focusedPreviewPaneID
+                            .flatMap { session.imagesByPaneID[$0] },
+                        chromeStyle: chromeStyle,
+                        layout: layout
+                    )
+                    .contentShape(Rectangle())
 
                     if isReordering {
-                        tile.draggable(window.id.uuidString)
+                        preview.draggable(window.id.uuidString)
+                            .accessibilityIdentifier("terminal.window.tile.\(window.displayIndex)")
+                            .accessibilityHint("Drag to reorder, or use Move Earlier and Move Later.")
                     } else {
-                        tile.highPriorityGesture(
+                        Button {
+                            Haptic.selection()
+                            onSelect(window.id)
+                        } label: { preview }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("terminal.window.tile.\(window.displayIndex)")
+                        .accessibilityHint("Long-press to rename, reorder, or remove windows.")
+                        .highPriorityGesture(
                             LongPressGesture(minimumDuration: 0.42, maximumDistance: 18)
                                 .onEnded { _ in
                                     Haptic.warning()

@@ -7,9 +7,11 @@ actor DeterministicTmuxControlTransport: TmuxControlTransport {
     private let chunks: [Data]
     private var started = false
     private var sentCommands: [Data] = []
+    private let responder: (@Sendable (Data) async -> Data)?
 
-    init(chunks: [Data]) {
+    init(chunks: [Data], responder: (@Sendable (Data) async -> Data)? = nil) {
         self.chunks = chunks
+        self.responder = responder
 
         var capturedContinuation: AsyncThrowingStream<Data, Error>.Continuation?
         receivedBytes = AsyncThrowingStream { continuation in
@@ -32,6 +34,8 @@ actor DeterministicTmuxControlTransport: TmuxControlTransport {
         sentCommands.append(data)
         if TmuxControlClientExit.isRequested(in: data) {
             continuation.finish()
+        } else if let responder {
+            continuation.yield(await responder(data))
         }
     }
 

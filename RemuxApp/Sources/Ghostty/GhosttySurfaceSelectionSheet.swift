@@ -28,7 +28,8 @@ struct GhosttyWindowSelectionSheet: View {
     @Environment(\.ghosttyTerminalChromeStyle) private var chromeStyle
     @ObservedObject var session: GhosttyPanePreviewSession
     @State private var pendingRemoval: GhosttyWindowRemovalRequest?
-    @State private var pendingContextAction: GhosttyWindowRemovalRequest?
+    @State private var isReordering = false
+    @State private var dropTargetID: UUID?
 
     let projection: GhosttyWindowSelectionSheetRenderProjection
     let topLevelNoun: GhosttyTopLevelNoun
@@ -39,10 +40,9 @@ struct GhosttyWindowSelectionSheet: View {
     let tapKeyboardBehavior: (UUID) -> WindowTapKeyboardBehavior
     let onSetTapKeyboardBehavior: (WindowTapKeyboardBehavior, UUID) -> Void
     let onRefreshTapKeyboardSettings: () -> Void
-    let fontSize: (UUID) -> Float32?
-    let onSetFontSize: (Float32?, UUID) -> Void
     let onCreateWindow: (() -> Void)?
     let onSelect: (UUID) -> Void
+    let onMoveWindow: (UUID, UUID) -> Void
     let onRemoveWindow: (UUID) -> Void
 
     var body: some View {
@@ -64,16 +64,33 @@ struct GhosttyWindowSelectionSheet: View {
                     for: .scrollContent
                 )
             } actions: {
-                TerminalSelectionSheetActionButton(
-                    title: "New \(topLevelNoun.singular)",
-                    systemName: "plus",
-                    accessibilityIdentifier: "terminal.window.new",
-                    action: onCreateWindow
-                )
+                if isReordering {
+                    Text("Drag windows to reorder")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("terminal.windows.reorder-hint")
+                } else {
+                    TerminalSelectionSheetActionButton(
+                        title: "New \(topLevelNoun.singular)",
+                        systemName: "plus",
+                        accessibilityIdentifier: "terminal.window.new",
+                        action: onCreateWindow
+                    )
+                }
             }
             .navigationTitle(topLevelNoun.plural)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if isReordering {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            Haptic.tap()
+                            isReordering = false
+                            dropTargetID = nil
+                        }
+                        .accessibilityIdentifier("terminal.windows.reorder.done")
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         Haptic.tap()
@@ -95,9 +112,8 @@ struct GhosttyWindowSelectionSheet: View {
             session.reconcile(leafIDs: newValue)
         }
         .onChange(of: projection.windows.map(\.id)) { _, newValue in
-            if let pendingContextAction, !newValue.contains(pendingContextAction.id) {
-                self.pendingContextAction = nil
-            }
+            if let dropTargetID, !newValue.contains(dropTargetID) { self.dropTargetID = nil }
+            if newValue.isEmpty { isReordering = false }
         }
         .confirmationDialog(
             "Remove \(topLevelNoun.singular)?",
@@ -146,8 +162,8 @@ struct GhosttyWindowSelectionSheet: View {
                 )
 
                 ZStack(alignment: .topTrailing) {
-                    Button {
-                        pendingContextAction = nil
+                    let tile = Button {
+                        guard !isReordering else { return }
                         Haptic.selection()
                         onSelect(window.id)
                     } label: {
@@ -166,16 +182,23 @@ struct GhosttyWindowSelectionSheet: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("terminal.window.tile.\(window.displayIndex)")
-                    .highPriorityGesture(
-                        LongPressGesture(minimumDuration: 0.42, maximumDistance: 18)
-                            .onEnded { _ in
-                                Haptic.warning()
-                                pendingContextAction = request
-                            }
-                    )
-                    .allowsHitTesting(pendingContextAction?.id != window.id)
+                    .accessibilityHint(isReordering
+                        ? "Drag to reorder, or use Move Earlier and Move Later."
+                        : "Long-press to reorder or remove windows.")
 
-                    if pendingContextAction?.id != window.id {
+                    if isReordering {
+                        tile.draggable(window.id.uuidString)
+                    } else {
+                        tile.highPriorityGesture(
+                            LongPressGesture(minimumDuration: 0.42, maximumDistance: 18)
+                                .onEnded { _ in
+                                    Haptic.warning()
+                                    isReordering = true
+                                }
+                        )
+                    }
+
+                    if !isReordering {
                         Menu {
                             Picker("Keyboard on tap", selection: Binding(
                                 get: { tapKeyboardBehavior(window.id) },
@@ -186,41 +209,26 @@ struct GhosttyWindowSelectionSheet: View {
                                 }
                             }
                             .pickerStyle(.inline)
-
-                            Menu {
-                                Picker("Text Size", selection: Binding<Float32?>(
-                                    get: { fontSize(window.id) },
-                                    set: { onSetFontSize($0, window.id) }
-                                )) {
-                                    Text("Use Default").tag(Float32?.none)
-                                    ForEach(Int(TerminalSettings.minimumFontSize)...Int(TerminalSettings.maximumFontSize), id: \.self) { size in
-                                        Text("\(size) pt").tag(Float32?.some(Float32(size)))
-                                    }
-                                }
-                                .pickerStyle(.inline)
-                            } label: {
-                                Label("Text Size", systemImage: "textformat.size")
-                            }
                         } label: {
-                            Image(systemName: "slider.horizontal.3")
+                            Image(systemName: "keyboard")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(tapKeyboardBehavior(window.id) == .useDefault && fontSize(window.id) == nil
+                                .foregroundStyle(tapKeyboardBehavior(window.id) == .useDefault
                                     ? Color.white : chromeStyle.accent)
                                 .frame(width: 36, height: 32)
                                 .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: 7))
                                 .frame(width: 44, height: 44)
                         }
-                        .accessibilityLabel("Settings for \(topLevelNoun.singular) \(window.displayIndex)")
+                        .accessibilityLabel("Keyboard on tap for \(topLevelNoun.singular) \(window.displayIndex)")
                         .accessibilityValue(tapKeyboardBehavior(window.id).title)
                         .accessibilityIdentifier("terminal.window.tap-keyboard.\(window.displayIndex)")
                         .padding(4)
                     }
 
-                    if pendingContextAction?.id == window.id {
+                    if isReordering {
                         GhosttySelectionContextActionButton(
                             title: "Remove \(topLevelNoun.singular) \(window.displayIndex)",
                             accessibilityIdentifier: "terminal.window.remove.\(window.displayIndex)",
-                            action: confirmPendingContextAction
+                            action: { pendingRemoval = request }
                         )
                         .padding(4)
                         .transition(.scale(scale: 0.92).combined(with: .opacity))
@@ -228,7 +236,29 @@ struct GhosttyWindowSelectionSheet: View {
                     }
                 }
                 .frame(width: layout.tilePointSize.width, height: layout.tilePointSize.height)
-                .animation(.spring(response: 0.24, dampingFraction: 0.82), value: pendingContextAction?.id)
+                .overlay {
+                    if dropTargetID == window.id {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(chromeStyle.accent, lineWidth: 3)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .dropDestination(for: String.self) { items, _ in
+                    guard isReordering, items.count == 1,
+                          let sourceID = UUID(uuidString: items[0]), sourceID != window.id,
+                          projection.windows.contains(where: { $0.id == sourceID }) else { return false }
+                    dropTargetID = nil
+                    Haptic.selection()
+                    onMoveWindow(sourceID, window.id)
+                    return true
+                } isTargeted: { targeted in
+                    if isReordering && targeted { dropTargetID = window.id }
+                    else if dropTargetID == window.id { dropTargetID = nil }
+                }
+                .animation(.spring(response: 0.24, dampingFraction: 0.82), value: isReordering)
+                .accessibilityAction(named: Text("Reorder Windows")) { isReordering = true }
+                .accessibilityAction(named: Text("Move Earlier")) { moveWindow(window.id, offset: -1) }
+                .accessibilityAction(named: Text("Move Later")) { moveWindow(window.id, offset: 1) }
                 .accessibilityAction(named: Text("Remove \(topLevelNoun.singular) \(window.displayIndex)")) {
                     Haptic.warning()
                     pendingRemoval = request
@@ -245,15 +275,17 @@ struct GhosttyWindowSelectionSheet: View {
             set: { isPresented in
                 if !isPresented {
                     pendingRemoval = nil
-                    pendingContextAction = nil
                 }
             }
         )
     }
 
-    private func confirmPendingContextAction() {
-        pendingRemoval = pendingContextAction
-        pendingContextAction = nil
+    private func moveWindow(_ id: UUID, offset: Int) {
+        guard let index = projection.windows.firstIndex(where: { $0.id == id }),
+              projection.windows.indices.contains(index + offset) else { return }
+        isReordering = true
+        Haptic.selection()
+        onMoveWindow(id, projection.windows[index + offset].id)
     }
 
     private func windowRemovalMessage(for request: GhosttyWindowRemovalRequest) -> String {

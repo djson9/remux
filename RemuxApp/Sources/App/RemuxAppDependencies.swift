@@ -505,6 +505,14 @@ struct RemuxAppDependencies: Sendable {
         let simulatesMissingTmux = ProcessInfo.processInfo.environment[
             "REMUX_UI_TEST_TMUX_MISSING"
         ] == "1"
+        let reorderServer = ProcessInfo.processInfo.environment["REMUX_UI_TEST_REORDER_WINDOWS"] == "1"
+            ? WindowReorderUITestServer() : nil
+        let reorderResponder: (@Sendable (Data) async -> Data)?
+        if let reorderServer {
+            reorderResponder = { data in await reorderServer.respond(to: data) }
+        } else {
+            reorderResponder = nil
+        }
 
         return RemuxAppDependencies(
             profileRepository: InMemoryConnectionProfileRepository(),
@@ -526,7 +534,8 @@ struct RemuxAppDependencies: Sendable {
             ),
             transportFactory: { _, _, _ in
                 DeterministicTmuxControlTransport(
-                    chunks: uiTestingTransportChunks()
+                    chunks: uiTestingTransportChunks(windowCount: reorderServer == nil ? 1 : 3),
+                    responder: reorderResponder
                 )
             },
             sshConnectionPrewarmer: { _, _, _ in
@@ -586,7 +595,7 @@ struct RemuxAppDependencies: Sendable {
         }
     }
 
-    private static func uiTestingTransportChunks() -> [Data] {
+    private static func uiTestingTransportChunks(windowCount: Int = 1) -> [Data] {
         guard ProcessInfo.processInfo.environment["REMUX_UI_TEST_INPUT_READY"] == "1" else {
             return []
         }
@@ -594,14 +603,14 @@ struct RemuxAppDependencies: Sendable {
         // Answers GhosttyKit's `list-panes -s -F` request. The line needs every
         // field of that format, through pane_current_command and
         // pane_current_path, or the client rejects the attach.
-        let paneState = "%0;83;44;0;0;1;;;;0;4294967295;4294967295;0;1;0;0;0;0;0;0;0;0;;;0;0;43;8,16;zsh;/home/demo\n"
-        let window = "$42 @0 1 %0 83 44 b7dd,83x44,0,0,0 b7dd,83x44,0,0,0 window-0\n"
+        let paneState = (0..<windowCount).map { WindowReorderUITestServer.paneState($0) }.joined()
+        let window = (0..<windowCount).map { WindowReorderUITestServer.windowRecord($0) }.joined()
         let transcript = "%begin 1 1 0\n%end 1 1 0\n%session-changed $42 main\n"
             + "%begin 2 2 1\n3.1\n%end 2 2 1\n"
             + "%begin 3 3 1\n%end 3 3 1\n"
             + "%begin 4 4 1\n\(window)%end 4 4 1\n"
             + "%begin 5 5 1\n\(paneState)%end 5 5 1\n"
-            + (6...9).map { "%begin \($0) \($0) 1\n%end \($0) \($0) 1\n" }.joined()
+            + (6...(5 + windowCount * 4)).map { "%begin \($0) \($0) 1\n%end \($0) \($0) 1\n" }.joined()
         return [Data(transcript.utf8)]
     }
 #endif
@@ -632,6 +641,54 @@ struct RemuxAppDependencies: Sendable {
 }
 
 #if DEBUG || REMUX_LIVE_UI_TESTING
+/// A responding server for the window drag UI check. Other simulator fixtures
+/// keep their existing deterministic, read-only transcript.
+private actor WindowReorderUITestServer {
+    private var order = [0, 1, 2]
+    private var commandNumber = 1 // The initial attach block is not a command.
+
+    static func paneState(_ id: Int) -> String {
+        "%\(id);83;44;0;0;1;;;;0;4294967295;4294967295;0;1;0;0;0;0;0;0;0;0;;;0;0;43;8,16;zsh;/home/demo\n"
+    }
+
+    static func windowRecord(_ id: Int) -> String {
+        let layout = String(format: "%04x,83x44,0,0,%d", 0xb7dd + id, id)
+        return "$42 @\(id) \(id == 0 ? 1 : 0) %\(id) 83 44 \(layout) \(layout) window-\(id)\n"
+    }
+
+    func respond(to data: Data) -> Data {
+        var reply = ""
+        var reordered = false
+        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
+            for command in line.components(separatedBy: " ; ") {
+                commandNumber += 1
+                // The initial three-window transcript already answers these.
+                guard commandNumber > 17 else { continue }
+                var body = ""
+                if command.hasPrefix("swap-window ") {
+                    let args = command.split(separator: " ").map(String.init)
+                    if let sourceFlag = args.firstIndex(of: "-s"),
+                       let targetFlag = args.firstIndex(of: "-t"),
+                       let source = Int(args[sourceFlag + 1].dropFirst()),
+                       let target = Int(args[targetFlag + 1].dropFirst()),
+                       let sourceIndex = order.firstIndex(of: source),
+                       let targetIndex = order.firstIndex(of: target), source != target {
+                        order.swapAt(sourceIndex, targetIndex)
+                        reordered = true
+                    }
+                } else if command.hasPrefix("list-windows "), command.contains("#{session_id}") {
+                    body = order.map(Self.windowRecord).joined()
+                } else if command.hasPrefix("list-panes -s ") {
+                    body = order.map(Self.paneState).joined()
+                }
+                reply += "%begin \(commandNumber) \(commandNumber) 1\n\(body)%end \(commandNumber) \(commandNumber) 1\n"
+            }
+        }
+        if reordered { reply += "%session-window-changed $42 @0\n" }
+        return Data(reply.utf8)
+    }
+}
+
 private actor InMemoryConnectionProfileRepository: ConnectionProfileRepository {
     private var servers: [SavedServer] = []
     private var workspaces: [SavedWorkspace] = []

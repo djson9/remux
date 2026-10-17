@@ -310,14 +310,6 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
 
 #if DEBUG
                         if GhosttySurfaceScreenPerfProbe.isEnabled {
-                            Color.clear
-                                .accessibilityElement()
-                                .accessibilityLabel("Terminal cell metrics")
-                                .accessibilityValue("\(screenProjection.viewport.cellMetrics?.pixelWidth ?? 0)x\(screenProjection.viewport.cellMetrics?.pixelHeight ?? 0)")
-                                .accessibilityIdentifier("terminal.cell-metrics")
-                                .frame(width: 1, height: 1)
-                                .allowsHitTesting(false)
-
                             GhosttySurfaceScreenBodyEvalMarker(
                                 value: GhosttySurfaceScreenPerfProbe.markerValue
                             )
@@ -2163,11 +2155,10 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
                 commandFailureMessage: selectionSheetCommandFailureMessage,
                 tapKeyboardBehavior: model.tapKeyboardBehavior(inTopLevel:),
                 onSetTapKeyboardBehavior: model.setTapKeyboardBehavior(_:inTopLevel:),
-                onRefreshTapKeyboardSettings: model.refreshWindowSettings,
-                fontSize: model.fontSize(inTopLevel:),
-                onSetFontSize: model.setFontSize(_:inTopLevel:),
+                onRefreshTapKeyboardSettings: model.refreshWindowTapKeyboardSettings,
                 onCreateWindow: createTopLevelFromSelectionSheet,
                 onSelect: selectTopLevelFromSelectionSheet,
+                onMoveWindow: { id, targetID in model.moveTopLevel(id, to: targetID) },
                 onRemoveWindow: closeTopLevelFromSelectionSheet
             )
 

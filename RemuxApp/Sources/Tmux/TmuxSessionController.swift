@@ -71,6 +71,7 @@ final class TmuxSessionController: @unchecked Sendable {
 
     enum Request: Equatable, Sendable {
         case newWindow
+        case reorderWindow
         case splitPane
         case closePane
         case closeWindow
@@ -215,7 +216,7 @@ final class TmuxSessionController: @unchecked Sendable {
         )
         case trackedInput(@Sendable (Bool) -> Void)
         case zoomMarks(@Sendable ([TmuxZoomMark]) -> Void)
-        case windowSettings(@Sendable (String?) -> Void)
+        case tapKeyboardSettings(@Sendable (String?) -> Void)
     }
 
     let queue: DispatchQueue
@@ -337,7 +338,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingWindowSettings()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -357,7 +358,7 @@ final class TmuxSessionController: @unchecked Sendable {
             guard !shuttingDown else { return }
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingWindowSettings()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -375,7 +376,7 @@ final class TmuxSessionController: @unchecked Sendable {
             outboundSink = nil
             let directoryQueries = outstandingPaneDirectoryQueries()
             let trackedInputCompletions = outstandingTrackedInputCompletions()
-            failOutstandingWindowSettings()
+            failOutstandingTapKeyboardSettings()
             requestsByToken.removeAll()
             directoryQueries.forEach { $0(.failure(.sessionUnavailable)) }
             trackedInputCompletions.forEach { $0(false) }
@@ -457,7 +458,7 @@ final class TmuxSessionController: @unchecked Sendable {
         case GHOSTTY_TMUX_ACTION_EXIT:
             failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
             failOutstandingTrackedInput()
-            failOutstandingWindowSettings()
+            failOutstandingTapKeyboardSettings()
             deferredNavigationIntent = nil
             deferredWindowZoomIntent = nil
             successfulMutationRequiredAfterRevision = nil
@@ -598,7 +599,7 @@ final class TmuxSessionController: @unchecked Sendable {
             }
             completionHandler(zoomOwner.marks(fromQueryReply: decodeTmuxString(completion.body)))
             return
-        case .windowSettings(let completionHandler):
+        case .tapKeyboardSettings(let completionHandler):
             completionHandler(completion.status == GHOSTTY_TMUX_COMMAND_SUCCESS
                 ? decodeTmuxString(completion.body) : nil)
             return
@@ -830,6 +831,30 @@ final class TmuxSessionController: @unchecked Sendable {
         }
     }
 
+    func requestMoveWindow(windowID: TmuxWindowID, targetWindowID: TmuxWindowID) {
+        queue.async { [self] in
+            guard windowID != targetWindowID else { return }
+            guard let topology,
+                  let sourceIndex = topology.windows.firstIndex(where: { $0.id == windowID }),
+                  let targetIndex = topology.windows.firstIndex(where: { $0.id == targetWindowID }),
+                  let activeWindowID = topology.activeWindowID else {
+                reportRequestFailure(.reorderWindow)
+                return
+            }
+            // Adjacent swaps insert at the destination while preserving index
+            // gaps and supporting tmux 3.1 (which has no move-window -b).
+            let neighbours = sourceIndex < targetIndex
+                ? Array(topology.windows[(sourceIndex + 1)...targetIndex])
+                : Array(topology.windows[targetIndex..<sourceIndex].reversed())
+            var commands = neighbours.map {
+                "swap-window -d -s @\(windowID.rawValue) -t @\($0.id.rawValue)"
+            }
+            // Swapping indices can change the selected identity, even with -d.
+            commands.append("select-window -t @\(activeWindowID.rawValue)")
+            enqueueGroupOnWriter(commands: commands, request: .reorderWindow)
+        }
+    }
+
     func requestSplit(
         paneID: TmuxPaneID,
         direction: SplitDirection,
@@ -969,7 +994,7 @@ final class TmuxSessionController: @unchecked Sendable {
     func requestWindowTapKeyboardSettings(
         completion: @escaping @Sendable ([TmuxWindowID: WindowTapKeyboardBehavior]?) -> Void
     ) {
-        requestWindowSettings(command: TmuxWindowTapKeyboard.query) { reply in
+        requestTapKeyboardSettings(command: TmuxWindowTapKeyboard.query) { reply in
             completion(reply.map { TmuxWindowTapKeyboard.settings(from: $0) })
         }
     }
@@ -979,30 +1004,12 @@ final class TmuxSessionController: @unchecked Sendable {
         behavior: WindowTapKeyboardBehavior,
         completion: @escaping @Sendable (Bool) -> Void
     ) {
-        requestWindowSettings(
+        requestTapKeyboardSettings(
             command: TmuxWindowTapKeyboard.command(windowID: windowID, behavior: behavior)
         ) { reply in completion(reply != nil) }
     }
 
-    func requestWindowFontSizes(
-        completion: @escaping @Sendable ([TmuxWindowID: Float32]?) -> Void
-    ) {
-        requestWindowSettings(command: TmuxWindowFontSize.query) { reply in
-            completion(reply.map { TmuxWindowFontSize.settings(from: $0) })
-        }
-    }
-
-    func requestSetWindowFontSize(
-        windowID: TmuxWindowID,
-        size: Float32?,
-        completion: @escaping @Sendable (Bool) -> Void
-    ) {
-        requestWindowSettings(command: TmuxWindowFontSize.command(windowID: windowID, size: size)) {
-            completion($0 != nil)
-        }
-    }
-
-    private func requestWindowSettings(
+    private func requestTapKeyboardSettings(
         command: String,
         completion: @escaping @Sendable (String?) -> Void
     ) {
@@ -1016,18 +1023,18 @@ final class TmuxSessionController: @unchecked Sendable {
                 completion(nil)
                 return
             }
-            requestsByToken[token] = .windowSettings(completion)
+            requestsByToken[token] = .tapKeyboardSettings(completion)
             _ = drainOutbound()
         }
     }
 
-    private func failOutstandingWindowSettings() {
+    private func failOutstandingTapKeyboardSettings() {
         let completions = requestsByToken.values.compactMap { request -> (@Sendable (String?) -> Void)? in
-            guard case .windowSettings(let completion) = request else { return nil }
+            guard case .tapKeyboardSettings(let completion) = request else { return nil }
             return completion
         }
         requestsByToken = requestsByToken.filter {
-            guard case .windowSettings = $0.value else { return true }
+            guard case .tapKeyboardSettings = $0.value else { return true }
             return false
         }
         completions.forEach { $0(nil) }
@@ -1444,7 +1451,7 @@ final class TmuxSessionController: @unchecked Sendable {
 
     private func requestMutatesTopology(_ request: Request) -> Bool {
         switch request {
-        case .newWindow, .splitPane, .closePane, .closeWindow,
+        case .newWindow, .reorderWindow, .splitPane, .closePane, .closeWindow,
              .selectWindow, .selectPane, .zoomPane:
             true
         case .copyMode, .setClientSize, .sendInput:
@@ -1709,7 +1716,7 @@ final class TmuxSessionController: @unchecked Sendable {
         guard !shuttingDown else { return }
         failOutstandingPaneDirectoryQueries(with: .sessionUnavailable)
         failOutstandingTrackedInput()
-        failOutstandingWindowSettings()
+        failOutstandingTapKeyboardSettings()
         deferredNavigationIntent = nil
         deferredWindowZoomIntent = nil
         successfulMutationRequiredAfterRevision = nil

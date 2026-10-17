@@ -10,7 +10,6 @@
 		00667DCDFC19B202FCDFF8F7 /* GhosttySurfaceSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA2520FAE4E2D228D25CADB /* GhosttySurfaceSelectionSheet.swift */; };
 		017C744C31F059189FA8E489 /* GhosttyRuntimeSurfaceTopologySnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76BB5CC730EB26907A34E42 /* GhosttyRuntimeSurfaceTopologySnapshotTests.swift */; };
 		021F179B9FAE8CD2AACFEA2A /* PaneTopologyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66FF4A303A3A5273C1B9EEE3 /* PaneTopologyLayout.swift */; };
-		02F1C768AB8910B9959BC059 /* TmuxWindowFontSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7239EF381532C626DE6C151 /* TmuxWindowFontSize.swift */; };
 		034B17174ABCC1D1DF36C135 /* GhosttyKeyboardCursorTrackpadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFA7B573241258BA93FCF29 /* GhosttyKeyboardCursorTrackpadTests.swift */; };
 		036AB1FE9FEBF1EF99159FD1 /* ShortcutStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9987EA1F7B5FDC3A50ECEA /* ShortcutStore.swift */; };
 		0392B5525658B83DB1F19D51 /* TmuxWindowTapKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10988E21E7E3DDD81FF54D9F /* TmuxWindowTapKeyboard.swift */; };
@@ -411,7 +410,6 @@
 		C6233E6291A38BAAE86C727D /* Remux.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Remux.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6958616F9B9DFD9E0E38E6B /* GhosttySurfaceKeyEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhosttySurfaceKeyEvent.swift; sourceTree = "<group>"; };
 		C6B9190F4B7D89571CC2FAAA /* RemuxVoiceComposerEntryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxVoiceComposerEntryTests.swift; sourceTree = "<group>"; };
-		C7239EF381532C626DE6C151 /* TmuxWindowFontSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxWindowFontSize.swift; sourceTree = "<group>"; };
 		C7313F7C3049C269572F59B5 /* RemuxLibrarySSHPrewarmCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxLibrarySSHPrewarmCoordinatorTests.swift; sourceTree = "<group>"; };
 		C944FBD600E4357E517F2DD3 /* TrustedHostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustedHostStore.swift; sourceTree = "<group>"; };
 		C97501167D8C7BDC3DDE46DD /* GhosttyComposerDictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhosttyComposerDictationController.swift; sourceTree = "<group>"; };
@@ -508,7 +506,6 @@
 				575EDAA61B2B7A0B241A5E4D /* TmuxSessionLink.swift */,
 				D507C4F64535720BC9A3F665 /* TmuxTerminalScreenAdapter.swift */,
 				DB8184BF6C8C3A418E9BD893 /* TmuxTerminalSession.swift */,
-				C7239EF381532C626DE6C151 /* TmuxWindowFontSize.swift */,
 				10988E21E7E3DDD81FF54D9F /* TmuxWindowTapKeyboard.swift */,
 				CC6C8F232F1C4CE0D24511ED /* TmuxZoomOwnership.swift */,
 			);
@@ -1106,7 +1103,6 @@
 				4E1E79EA4EF03C84167E2F1E /* TmuxSessionLink.swift in Sources */,
 				7FB696D68436C55D304387E4 /* TmuxTerminalScreenAdapter.swift in Sources */,
 				8E787177A7A3A043317795F0 /* TmuxTerminalSession.swift in Sources */,
-				02F1C768AB8910B9959BC059 /* TmuxWindowFontSize.swift in Sources */,
 				0392B5525658B83DB1F19D51 /* TmuxWindowTapKeyboard.swift in Sources */,
 				724E5F92CC1E85BCC204495E /* TmuxZoomOwnership.swift in Sources */,
 				521EE36C02EDBE0FB9AD5A69 /* TrustedHostStore.swift in Sources */,

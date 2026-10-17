@@ -210,36 +210,43 @@ final class RemuxAppUITests: XCTestCase {
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
         let transcript = "Voice shortcut current session"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript
+        app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
         launchSeededSimulatorTerminal(attachesTmux: false)
-        app.open(URL(string: "remuxdev://record")!)
+        let shortcut = app.buttons["uitest.voice-shortcut"]
+        XCTAssertTrue(shortcut.waitForExistence(timeout: 5))
+        shortcut.tap()
 
         XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 5))
         let stop = app.buttons["terminal.composer.dictation.stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 5))
         // The second press finishes transcription and leaves an editable draft.
-        app.open(URL(string: "remuxdev://record")!)
+        shortcut.tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
         let field = app.textViews["terminal.composer.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, transcript)
-        XCTAssertFalse(stop.exists)
         XCTAssertTrue(app.otherElements["terminal.composer.bounds"].exists)
         // A subsequent press can begin another recording in the same composer.
-        app.open(URL(string: "remuxdev://record")!)
+        shortcut.tap()
         XCTAssertTrue(stop.waitForExistence(timeout: 3))
         app.buttons["terminal.composer.dictation.cancel"].tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
         XCTAssertEqual(field.value as? String, transcript)
     }
 
     func testVoiceComposerShortcutColdLaunchResumesSessionAndRecords() {
         let transcript = "Voice shortcut cold launch"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript
+        app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
         launchSeededSimulatorTerminal(attachesTmux: false)
         app.terminate()
         app.open(URL(string: "remuxdev://record")!)
 
         XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["terminal.composer.dictation.stop"].waitForExistence(timeout: 5))
-        app.open(URL(string: "remuxdev://record")!)
+        let stop = app.buttons["terminal.composer.dictation.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        app.buttons["uitest.voice-shortcut"].tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
         let field = app.textViews["terminal.composer.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, transcript)

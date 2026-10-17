@@ -1,3 +1,4 @@
+import AppIntents
 import SafariServices
 import SwiftUI
 import UIKit
@@ -75,6 +76,22 @@ private struct RemuxRootContentView: View {
                 RemuxVoiceComposerEntry.shared.request()
             }
         }
+#if DEBUG
+        .overlay(alignment: .topTrailing) {
+            if ProcessInfo.processInfo.environment["REMUX_UI_TEST_VOICE_SHORTCUT"] == "1" {
+                // XCTest cannot press the hardware Action Button. Invoke its
+                // actual intent without routing through another application.
+                Button {
+                    Task { _ = try? await RecordInRemuxComposerIntent().perform() }
+                } label: {
+                    Image(systemName: "mic")
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Invoke recording shortcut")
+                .accessibilityIdentifier("uitest.voice-shortcut")
+            }
+        }
+#endif
     }
 
     private var currentTailscaleSSHCheckRequest: Binding<TailscaleSSHCheckRequest?> {

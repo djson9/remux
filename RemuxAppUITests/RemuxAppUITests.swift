@@ -207,29 +207,79 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertNotNil(waitForKeyboardPresence(true, label: "window overrides global keyboard default"))
     }
 
+    func testWindowTextSizeChangesFontMetricsAndRestoresDefault() {
+        launchSeededSimulatorTerminal()
+        let metrics = app.otherElements["terminal.cell-metrics"]
+        XCTAssertTrue(metrics.waitForExistence(timeout: 5))
+        guard let original = metrics.value as? String,
+              let originalWidth = Int(original.split(separator: "x")[0]), originalWidth > 0 else {
+            return XCTFail("Missing measured terminal font cells")
+        }
+
+        func chooseSize(_ title: String) {
+            app.buttons["terminal.windows"].tap()
+            let settings = app.buttons["terminal.window.tap-keyboard.1"]
+            XCTAssertTrue(settings.waitForExistence(timeout: 5))
+            settings.tap()
+            app.buttons["Text Size"].tap()
+            app.buttons[title].tap()
+            app.buttons["terminal.windows.close"].tap()
+        }
+
+        chooseSize("14 pt")
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", original), object: metrics)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+        let enlarged = metrics.value as? String ?? "0x0"
+        XCTAssertGreaterThan(Int(enlarged.split(separator: "x")[0]) ?? 0, originalWidth)
+
+        chooseSize("Use Default")
+        let restored = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", original), object: metrics)
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+    }
+
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
-        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Voice shortcut current session"
+        let transcript = "Voice shortcut current session"
+        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript
+        app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
         launchSeededSimulatorTerminal(attachesTmux: false)
-        app.open(URL(string: "remuxdev://record")!)
+        let shortcut = app.buttons["uitest.voice-shortcut"]
+        XCTAssertTrue(shortcut.waitForExistence(timeout: 5))
+        shortcut.tap()
 
         XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 5))
         let stop = app.buttons["terminal.composer.dictation.stop"]
         XCTAssertTrue(stop.waitForExistence(timeout: 5))
-        // Another delivery must not stop or reset an already active recording.
-        app.open(URL(string: "remuxdev://record")!)
+        // The second press finishes transcription and leaves an editable draft.
+        shortcut.tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
+        let field = app.textViews["terminal.composer.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, transcript)
+        XCTAssertTrue(app.otherElements["terminal.composer.bounds"].exists)
+        // A subsequent press can begin another recording in the same composer.
+        shortcut.tap()
         XCTAssertTrue(stop.waitForExistence(timeout: 3))
         app.buttons["terminal.composer.dictation.cancel"].tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
+        XCTAssertEqual(field.value as? String, transcript)
     }
 
     func testVoiceComposerShortcutColdLaunchResumesSessionAndRecords() {
-        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Voice shortcut cold launch"
+        let transcript = "Voice shortcut cold launch"
+        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript
+        app.launchEnvironment["REMUX_UI_TEST_VOICE_SHORTCUT"] = "1"
         launchSeededSimulatorTerminal(attachesTmux: false)
         app.terminate()
         app.open(URL(string: "remuxdev://record")!)
 
         XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["terminal.composer.dictation.stop"].waitForExistence(timeout: 5))
-        app.buttons["terminal.composer.dictation.cancel"].tap()
+        let stop = app.buttons["terminal.composer.dictation.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        app.buttons["uitest.voice-shortcut"].tap()
+        XCTAssertTrue(waitForElementToDisappear(stop, timeout: 5))
+        let field = app.textViews["terminal.composer.field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertEqual(field.value as? String, transcript)
     }
 
     func testComposerDictationStopAndCancelFlow() {

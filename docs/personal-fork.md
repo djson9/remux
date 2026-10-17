@@ -60,11 +60,16 @@ on-device dictation. A cold launch resumes the most recently used saved session.
 Microphone and speech permissions are requested normally on first use.
 If no session has been configured, the app asks you to open one first.
 
-The same entry point is available at `remuxdev://record`. Repeated delivery
-leaves an active recording running, and pending requests are cancelled when the
-app enters the background. The normal on-screen stop and cancel controls remain
-available. CI checks both current-session and cold-launch flows with the debug
-dictation backend; the physical button assignment is made in iPhone Settings.
+Press the Action Button again to stop recording and keep the completed transcript
+in the composer. Another press can start a new recording. Pressing while dictation
+is still starting cancels startup; pressing while the final transcript is arriving
+leaves it to finish. The existing shortcut assignment keeps working after updates.
+
+The same entry point is available at `remuxdev://record`. Pending requests are
+cancelled when the app enters the background. The normal on-screen stop and
+cancel controls remain available. CI checks current-session and cold-launch
+start/stop flows with the debug dictation backend; the physical button assignment
+is made in iPhone Settings.
 
 ## Terminal tap keyboard setting
 
@@ -74,12 +79,18 @@ still work, and the toolbar keyboard button opens the keyboard when you need it.
 This preference is saved and applies immediately to open sessions. It defaults
 to on for new installs and existing settings.
 
-Each card in **Windows** has a keyboard menu: **Use Default**, **Show on Tap**,
+Each card in **Windows** has a settings menu: **Use Default**, **Show on Tap**,
 or **Keep Hidden**. This overrides the global default for that tmux window.
 The override is saved as the window's `@remux-dev-tap-keyboard` option, so it
 survives reconnects and renaming and disappears when the window is closed.
 Use Default removes the override. Other Remux Dev clients attached to the same
 window share its override; each client's global default remains local.
+
+The same menu has **Text Size**, with sizes from 5–24 pt and **Use Default**.
+This setting applies to every pane in that window and is saved as the window's
+`@remux-dev-font-size` option. Switching windows reapplies the selected window's
+size and recomputes the terminal grid; changing the global size preserves window
+overrides. Use Default returns that window to the global font setting.
 
 ## Local validation
 

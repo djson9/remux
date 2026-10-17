@@ -33,7 +33,7 @@ final class RemuxVoiceComposerEntry: ObservableObject {
 struct RecordInRemuxComposerIntent: AppIntent {
     static let title: LocalizedStringResource = "Record in Composer"
     static let description = IntentDescription(
-        "Opens the Remux Dev composer and starts dictation in your current or most recent session."
+        "Opens the Remux Dev composer and starts dictation, or stops an active recording and keeps the transcript."
     )
 
     @MainActor

@@ -95,6 +95,9 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
     private var tapKeyboardRevision: UInt64 = 0
     private var tapKeyboardMutationRevisions: [TmuxWindowID: UInt64] = [:]
     private var tapKeyboardConfirmedRevisions: [TmuxWindowID: UInt64] = [:]
+    private var windowFontSizes = TmuxWindowFontSizeState()
+    private var didLoadWindowFontSizes = false
+    private var isLoadingWindowFontSizes = false
 
     private var commandFailureMessage: String?
     private(set) var commandFailureEvent: GhosttyTerminalCommandFailureEvent?
@@ -130,6 +133,7 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
                     if !self.didLoadWindowTapKeyboardSettings {
                         self.refreshWindowTapKeyboardSettings()
                     }
+                    if !self.didLoadWindowFontSizes { self.refreshWindowFontSizes() }
                 } else {
                     self.ownedZoomWindowIDs.removeAll()
                     self.pendingZoomOwnershipWindowIDs.removeAll()
@@ -204,6 +208,9 @@ final class TmuxTerminalScreenAdapter: ObservableObject {
         confirmedWindowTapKeyboardSettings.removeAll()
         tapKeyboardMutationRevisions.removeAll()
         tapKeyboardConfirmedRevisions.removeAll()
+        windowFontSizes = TmuxWindowFontSizeState()
+        didLoadWindowFontSizes = false
+        isLoadingWindowFontSizes = false
         didLoadWindowTapKeyboardSettings = false
         isLoadingWindowTapKeyboardSettings = false
         activeManagedPaneID = nil
@@ -1061,7 +1068,52 @@ extension TmuxTerminalScreenAdapter: GhosttyTerminalScreenModeling {
         )
     }
 
-    func refreshWindowTapKeyboardSettings() {
+    func refreshWindowSettings() {
+        refreshWindowTapKeyboardSettings()
+        refreshWindowFontSizes()
+    }
+
+    var activeWindowFontSize: Float32? {
+        latestTopology?.activeWindowID.flatMap { windowFontSizes.value(for: $0) }
+    }
+
+    func fontSize(inTopLevel id: UUID) -> Float32? {
+        identities.windowID(for: id).flatMap { windowFontSizes.value(for: $0) }
+    }
+
+    private func refreshWindowFontSizes() {
+        guard let controller, latestTopology != nil, !isLoadingWindowFontSizes else { return }
+        isLoadingWindowFontSizes = true
+        let revision = windowFontSizes.revision
+        controller.requestWindowFontSizes { [weak self] sizes in
+            Task { @MainActor in
+                guard let self, self.controller === controller else { return }
+                self.isLoadingWindowFontSizes = false
+                guard let sizes else { return }
+                self.didLoadWindowFontSizes = true
+                self.windowFontSizes.apply(sizes, windows: self.latestTopology?.windows.map(\.id) ?? [], readRevision: revision)
+                self.objectWillChange.send()
+            }
+        }
+    }
+
+    func setFontSize(_ size: Float32?, inTopLevel id: UUID) {
+        guard let controller, let windowID = identities.windowID(for: id),
+              latestTopology?.windows.contains(where: { $0.id == windowID }) == true else { return }
+        let normalized = TmuxWindowFontSize.validated(size)
+        let revision = windowFontSizes.change(normalized, in: windowID)
+        objectWillChange.send()
+        controller.requestSetWindowFontSize(windowID: windowID, size: normalized) { [weak self] succeeded in
+            Task { @MainActor in
+                guard let self, self.controller === controller else { return }
+                let reverted = self.windowFontSizes.complete(normalized, in: windowID, revision: revision, succeeded: succeeded)
+                if reverted { self.presentCommandFailure(message: "Couldn't save the text size. Please try again.") }
+                self.objectWillChange.send()
+            }
+        }
+    }
+
+    private func refreshWindowTapKeyboardSettings() {
         guard let controller, latestTopology != nil, !isLoadingWindowTapKeyboardSettings else { return }
         isLoadingWindowTapKeyboardSettings = true
         let revision = tapKeyboardRevision

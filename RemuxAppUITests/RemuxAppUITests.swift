@@ -163,6 +163,31 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["terminal.shortcuts.settings"].waitForExistence(timeout: 1))
     }
 
+    func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
+        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Voice shortcut current session"
+        launchSeededSimulatorTerminal(attachesTmux: false)
+        app.open(URL(string: "remuxdev://record")!)
+
+        XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 5))
+        let stop = app.buttons["terminal.composer.dictation.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        // Another delivery must not stop or reset an already active recording.
+        app.open(URL(string: "remuxdev://record")!)
+        XCTAssertTrue(stop.waitForExistence(timeout: 3))
+        app.buttons["terminal.composer.dictation.cancel"].tap()
+    }
+
+    func testVoiceComposerShortcutColdLaunchResumesSessionAndRecords() {
+        app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Voice shortcut cold launch"
+        launchSeededSimulatorTerminal(attachesTmux: false)
+        app.terminate()
+        app.open(URL(string: "remuxdev://record")!)
+
+        XCTAssertTrue(app.otherElements["terminal.composer.bounds"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["terminal.composer.dictation.stop"].waitForExistence(timeout: 5))
+        app.buttons["terminal.composer.dictation.cancel"].tap()
+    }
+
     func testComposerDictationStopAndCancelFlow() {
         let transcript = "Review the current changes and run the focused tests"
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = transcript

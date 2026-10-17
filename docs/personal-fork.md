@@ -51,6 +51,21 @@ The latest manifest also points to the immutable IPA, keeping upgrades coherent.
 Private signing receipts and packages are retained under `~/.local/share/remux/releases/` on
 the runner, and each published release includes its receipt and source metadata.
 
+## Action Button recording
+
+Open a session in Remux Dev once. On your iPhone, go to **Settings → Action
+Button → Shortcut**, choose **Remux Dev**, then **Record in Composer**.
+The shortcut opens the current session's composer and starts the existing
+on-device dictation. A cold launch resumes the most recently used saved session.
+Microphone and speech permissions are requested normally on first use.
+If no session has been configured, the app asks you to open one first.
+
+The same entry point is available at `remuxdev://record`. Repeated delivery
+leaves an active recording running, and pending requests are cancelled when the
+app enters the background. The normal on-screen stop and cancel controls remain
+available. CI checks both current-session and cold-launch flows with the debug
+dictation backend; the physical button assignment is made in iPhone Settings.
+
 ## Local validation
 
 ```sh

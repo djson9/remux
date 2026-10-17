@@ -27,6 +27,47 @@ extension SavedServer {
 
 @MainActor
 final class RemuxRootModelTests: XCTestCase {
+    func testVoiceEntryColdLaunchResumesMostRecentSavedWorkspace() async throws {
+        let pair = makePasswordBackedServer()
+        let older = SavedWorkspace(serverID: pair.server.id, sessionName: "older", lastOpenedAt: Date(timeIntervalSince1970: 1))
+        let recent = SavedWorkspace(serverID: pair.server.id, sessionName: "recent", lastOpenedAt: Date(timeIntervalSince1970: 2))
+        let harness = makeHarness(servers: [pair.server], workspaces: [older, recent], identities: [pair.identity])
+        try await harness.credentialHelper.savePassword("test-password", for: pair.server.id)
+        await harness.model.load()
+
+        let resumed = await harness.model.resumeWorkspaceForVoiceEntry()
+
+        XCTAssertTrue(resumed)
+        XCTAssertEqual(harness.model.state, .terminal(recent.id))
+        XCTAssertEqual(harness.model.activeSessions.map(\.id), [recent.id])
+    }
+
+    func testVoiceEntryFromLibraryUsesPreviouslyVisibleActiveSession() async throws {
+        let pair = makePasswordBackedServer()
+        let first = SavedWorkspace(serverID: pair.server.id, sessionName: "first")
+        let second = SavedWorkspace(serverID: pair.server.id, sessionName: "second")
+        let harness = makeHarness(servers: [pair.server], workspaces: [first, second], identities: [pair.identity])
+        try await harness.credentialHelper.savePassword("test-password", for: pair.server.id)
+        await harness.model.load()
+        await harness.model.connect(to: first.id)
+        await harness.model.connect(to: second.id)
+        await harness.model.showLibrary()
+
+        let resumed = await harness.model.resumeWorkspaceForVoiceEntry(preferredWorkspaceID: first.id)
+
+        XCTAssertTrue(resumed)
+        XCTAssertEqual(harness.model.state, .terminal(first.id))
+        XCTAssertEqual(harness.model.activeSessions.count, 2)
+    }
+
+    func testVoiceEntryWithoutASavedSessionKeepsLibraryVisible() async {
+        let harness = makeHarness()
+        await harness.model.load()
+        let resumed = await harness.model.resumeWorkspaceForVoiceEntry()
+        XCTAssertFalse(resumed)
+        XCTAssertEqual(harness.model.state, .library)
+    }
+
     func testRapidServerMovesAndLibraryReloadKeepLatestOrder() async throws {
         let servers = ["Alpha", "Beta", "Gamma"].map {
             SavedServer(displayName: $0, host: "server.example.test", username: "demo")

@@ -70,6 +70,11 @@ private struct RemuxRootContentView: View {
                 handleTailscaleSSHCheckEvent(event)
             }
         }
+        .onOpenURL { url in
+            if RemuxVoiceComposerEntry.accepts(url) {
+                RemuxVoiceComposerEntry.shared.request()
+            }
+        }
     }
 
     private var currentTailscaleSSHCheckRequest: Binding<TailscaleSSHCheckRequest?> {
@@ -102,6 +107,7 @@ private final class LastConnectionSetup {
 
 private struct RemuxWorkspaceShell: View {
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var voiceEntry = RemuxVoiceComposerEntry.shared
     @ObservedObject var model: RemuxRootModel
     let composer: GhosttyComposerModel
     let shortcutStore: ShortcutStore
@@ -112,6 +118,9 @@ private struct RemuxWorkspaceShell: View {
     @State private var connectionSetupSheetShowsServerSummary = true
     @State private var isConnectionSetupSheetPresented = false
     @State private var lastConnectionSetup = LastConnectionSetup()
+    @State private var voiceEntryTask: Task<Void, Never>?
+    @State private var voiceEntryRequestID: UUID?
+    @State private var voiceEntryNeedsSession = false
 
     var body: some View {
         ZStack {
@@ -123,7 +132,10 @@ private struct RemuxWorkspaceShell: View {
                 RemuxAppLifecycleProjection(scenePhase: scenePhase).appLifecyclePhase
             )
             if scenePhase == .background {
+                cancelPendingVoiceEntry()
                 composer.stopDictationImmediately()
+            } else if scenePhase == .active {
+                handlePendingVoiceEntry()
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -131,8 +143,19 @@ private struct RemuxWorkspaceShell: View {
                 RemuxAppLifecycleProjection(scenePhase: newPhase).appLifecyclePhase
             )
             if newPhase == .background {
+                cancelPendingVoiceEntry()
                 composer.stopDictationImmediately()
+            } else if newPhase == .active {
+                handlePendingVoiceEntry()
             }
+        }
+        .onChange(of: voiceEntry.pendingRequestID, initial: true) { _, _ in
+            handlePendingVoiceEntry()
+        }
+        .alert("Open a Session First", isPresented: $voiceEntryNeedsSession) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Open a session in Remux Dev, then press the Action Button to record in its composer.")
         }
         .onChange(of: selectedTerminalID) { _, newValue in
             guard let newValue else { return }
@@ -476,6 +499,39 @@ private struct RemuxWorkspaceShell: View {
                 isSessionSwitcherPresented = false
             }
         }
+    }
+
+    private func handlePendingVoiceEntry() {
+        guard scenePhase == .active,
+              let requestID = voiceEntry.pendingRequestID,
+              voiceEntryRequestID != requestID else { return }
+        voiceEntryTask?.cancel()
+        voiceEntryRequestID = requestID
+        voiceEntryTask = Task { @MainActor in
+            let resumed = await model.resumeWorkspaceForVoiceEntry(
+                preferredWorkspaceID: visibleTerminalID
+            )
+            guard !Task.isCancelled, voiceEntry.pendingRequestID == requestID else { return }
+            voiceEntry.consume(requestID)
+            guard resumed else {
+                voiceEntryNeedsSession = model.state == .library
+                return
+            }
+            isSessionSwitcherPresented = false
+            guard !composer.isSubmitting else { return }
+            if composer.dictationController.phase.isActive {
+                composer.isPresented = true
+            } else {
+                composer.open()
+                composer.startDictation()
+            }
+        }
+    }
+
+    private func cancelPendingVoiceEntry() {
+        voiceEntry.cancel()
+        voiceEntryTask?.cancel()
+        voiceEntryRequestID = nil
     }
 
     private func cancelSessionSetupIfNeeded() {

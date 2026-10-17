@@ -53,6 +53,10 @@ targets:
       path: RemuxApp/Info.plist
       properties:
         CFBundleDisplayName: Remux Dev
+        CFBundleURLTypes:
+          - CFBundleURLName: com.davidjson.remux.voice
+            CFBundleURLSchemes:
+              - remuxdev
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false

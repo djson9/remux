@@ -2,7 +2,7 @@
 
 > A native iOS client for remote tmux workspaces.
 
-This is Jay's personal fork. [Install the private iPhone build](https://jays-vm.tailade3f5.ts.net:8473/latest/)
+This is Jay's personal fork, **Remux Dev**. [Install the private iPhone build](https://jays-vm.tailade3f5.ts.net:8473/latest/)
 with Tailscale connected. See [fork development and automated releases](docs/personal-fork.md).
 
 <p align="center">

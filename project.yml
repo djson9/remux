@@ -52,12 +52,12 @@ targets:
     info:
       path: RemuxApp/Info.plist
       properties:
-        CFBundleDisplayName: Remux
+        CFBundleDisplayName: Remux Dev
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
-        NSMicrophoneUsageDescription: Remux uses the microphone so you can dictate messages.
-        NSSpeechRecognitionUsageDescription: Remux uses on-device speech recognition to turn your dictation into text.
+        NSMicrophoneUsageDescription: Remux Dev uses the microphone so you can dictate messages.
+        NSSpeechRecognitionUsageDescription: Remux Dev uses on-device speech recognition to turn your dictation into text.
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations:

@@ -4,7 +4,8 @@ The fork is [djson9/remux](https://github.com/djson9/remux), based on
 [h3nock/remux](https://github.com/h3nock/remux). The MIT license and upstream
 history are preserved. `origin` points to the fork and `upstream` to the original.
 
-The app uses `com.davidjson.remux`, so it can coexist with upstream Remux.
+The app is named **Remux Dev** and uses `com.davidjson.remux`, so it can coexist
+with upstream Remux. The OTA installer uses the built app's display name.
 `project.yml` remains the source of truth for the checked-in Xcode project.
 Use XcodeGen 2.46.0 and Xcode 26.3 or a compatible newer toolchain.
 

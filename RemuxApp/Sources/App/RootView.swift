@@ -916,7 +916,7 @@ private struct ConnectionLibraryView: View {
             guard !Task.isCancelled else { return }
             GhosttyKitRuntime.prewarmTerminalRenderer(terminalSettings: terminalSettings)
         }
-        .navigationTitle("Remux")
+        .navigationTitle("Remux Dev")
         .onChange(of: snapshot.servers.count) { _, count in
             if count < 2 { serverEditMode = .inactive }
         }

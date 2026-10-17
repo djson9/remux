@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Remux</string>
+	<string>Remux Dev</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -23,9 +23,9 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Remux uses the microphone so you can dictate messages.</string>
+	<string>Remux Dev uses the microphone so you can dictate messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Remux uses on-device speech recognition to turn your dictation into text.</string>
+	<string>Remux Dev uses on-device speech recognition to turn your dictation into text.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

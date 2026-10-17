@@ -35,6 +35,7 @@ final class TerminalSettingsTests: XCTestCase {
         XCTAssertFalse(settings.allowInsecureRSAHostKeys)
         XCTAssertFalse(settings.zoomMultipaneWindowsByDefault)
         XCTAssertEqual(settings.toolbarKeys, .default)
+        XCTAssertTrue(settings.showKeyboardOnTerminalTap)
     }
 
     func testToolbarKeysExposeCompactAndAccessibleTitles() {
@@ -100,10 +101,16 @@ final class TerminalSettingsTests: XCTestCase {
             theme: .remuxDark,
             toolbarKeys: TerminalToolbarKeys(first: .escape, second: .tab, third: .enter)
         )
+        let tapKeyboardChanged = TerminalSettings(
+            fontSize: 13,
+            theme: .remuxDark,
+            showKeyboardOnTerminalTap: false
+        )
 
         XCTAssertTrue(settings.hasSameTerminalAppearance(as: rsaOnly))
         XCTAssertTrue(settings.hasSameTerminalAppearance(as: multipaneDefaultChanged))
         XCTAssertTrue(settings.hasSameTerminalAppearance(as: toolbarKeysChanged))
+        XCTAssertTrue(settings.hasSameTerminalAppearance(as: tapKeyboardChanged))
         XCTAssertFalse(settings.hasSameTerminalAppearance(as: fontChanged))
         XCTAssertFalse(settings.hasSameTerminalAppearance(as: themeChanged))
     }

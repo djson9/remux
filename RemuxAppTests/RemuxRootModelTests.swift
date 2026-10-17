@@ -4068,6 +4068,7 @@ final class RemuxRootModelTests: XCTestCase {
             second: .control,
             third: .home
         )
+        toolbarUpdated.showKeyboardOnTerminalTap = false
         await harness.model.updateTerminalSettings { settings in
             settings = toolbarUpdated
         }
@@ -4077,6 +4078,7 @@ final class RemuxRootModelTests: XCTestCase {
         XCTAssertEqual(toolbarRefreshedSession.instanceID, originalSession.instanceID)
         XCTAssertEqual(toolbarEntry.runtimeAttemptKey, originalKey)
         XCTAssertEqual(toolbarEntry.presentation.toolbarKeys, toolbarUpdated.toolbarKeys)
+        XCTAssertFalse(toolbarEntry.presentation.showKeyboardOnTerminalTap)
         XCTAssertTrue(originalModel === harness.model.terminalScreenModel(for: toolbarRefreshedSession))
         XCTAssertEqual(factory.createdKeys, [originalKey])
         let savedSettings = try await harness.settingsRepository.loadSettings()

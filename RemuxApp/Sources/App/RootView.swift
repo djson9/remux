@@ -2001,7 +2001,11 @@ private struct TerminalSettingsView: View {
             }
             .libraryHomeListRowSurface()
 
-            Section("Keyboard") {
+            Section {
+                Toggle("Show keyboard on terminal tap", isOn: showKeyboardOnTerminalTapBinding)
+                    .tint(LibraryHomePalette.controlAccent)
+                    .accessibilityIdentifier("settings.show-keyboard-on-terminal-tap")
+
                 NavigationLink {
                     TerminalToolbarKeysSettingsView(
                         toolbarKeys: toolbarKeysBinding,
@@ -2029,6 +2033,10 @@ private struct TerminalSettingsView: View {
                     Label("Shortcuts", systemImage: "keyboard")
                 }
                 .accessibilityIdentifier("settings.shortcuts")
+            } header: {
+                Text("Keyboard")
+            } footer: {
+                Text("Turn off to tap terminal apps without opening the keyboard. Use the keyboard button to type.")
             }
             .libraryHomeListRowSurface()
 
@@ -2119,6 +2127,16 @@ private struct TerminalSettingsView: View {
             get: { settings.toolbarKeys },
             set: { value in
                 settings.toolbarKeys = value
+                sourceSettings = settings
+            }
+        )
+    }
+
+    private var showKeyboardOnTerminalTapBinding: Binding<Bool> {
+        Binding(
+            get: { settings.showKeyboardOnTerminalTap },
+            set: { value in
+                settings.showKeyboardOnTerminalTap = value
                 sourceSettings = settings
             }
         )

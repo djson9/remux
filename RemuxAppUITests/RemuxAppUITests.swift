@@ -163,6 +163,38 @@ final class RemuxAppUITests: XCTestCase {
         XCTAssertFalse(app.buttons["terminal.shortcuts.settings"].waitForExistence(timeout: 1))
     }
 
+    func testTerminalTapKeyboardSettingAppliesToRetainedSession() {
+        launchSeededSimulatorTerminal()
+        let terminal = app.otherElements["terminal.screen"]
+        terminal.tap()
+        XCTAssertNotNil(waitForKeyboardPresence(true, label: "default terminal tap"))
+        app.buttons["terminal.keyboard"].tap()
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "hide keyboard before setting"))
+
+        openHomeFromTerminal()
+        app.buttons["library.settings"].tap()
+        let toggle = app.switches["settings.show-keyboard-on-terminal-tap"]
+        if !toggle.waitForExistence(timeout: 1) || !toggle.isHittable {
+            settingsForm.swipeUp()
+        }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        attachScreenshot(named: "settings-terminal-tap-keyboard-disabled")
+        app.navigationBars["Settings"].buttons.firstMatch.tap()
+        app.buttons["library.active-session.show"].firstMatch.tap()
+
+        XCTAssertTrue(terminal.waitForExistence(timeout: 5))
+        terminal.tap()
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "terminal tap disabled", stableFor: 1))
+        // The explicit keyboard control must still work with tap-to-type off.
+        app.buttons["terminal.keyboard"].tap()
+        XCTAssertNotNil(waitForKeyboardPresence(true, label: "explicit keyboard button"))
+        app.buttons["terminal.keyboard"].tap()
+        XCTAssertNotNil(waitForKeyboardPresence(false, label: "explicit keyboard hide"))
+    }
+
     func testVoiceComposerShortcutStartsRecordingInCurrentSession() {
         app.launchEnvironment["REMUX_DEBUG_DICTATION_TRANSCRIPT"] = "Voice shortcut current session"
         launchSeededSimulatorTerminal(attachesTmux: false)

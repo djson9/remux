@@ -49,7 +49,8 @@ final class TerminalSettingsRepositoryTests: XCTestCase {
                 first: .pageDown,
                 second: .control,
                 third: .pageDown
-            )
+            ),
+            showKeyboardOnTerminalTap: false
         )
 
         try await repository.saveSettings(saved)

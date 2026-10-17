@@ -185,7 +185,7 @@ jobs:
           rm -rf "${RUNNER_TEMP}/RemuxUnitTests.xcresult"
           xcodebuild test -project Remux.xcodeproj -scheme Remux -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" -jobs 4 -only-testing:RemuxTests -resultBundlePath "${RUNNER_TEMP}/RemuxUnitTests.xcresult"
 
-      - name: Run voice composer shortcut UI checks
+      - name: Run terminal interaction UI checks
         shell: bash
         run: |
           rm -rf "$RUNNER_TEMP/RemuxVoiceShortcut.xcresult"
@@ -193,6 +193,7 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" -jobs 4 \
             -only-testing:RemuxUITests/RemuxAppUITests/testVoiceComposerShortcutStartsRecordingInCurrentSession \
             -only-testing:RemuxUITests/RemuxAppUITests/testVoiceComposerShortcutColdLaunchResumesSessionAndRecords \
+            -only-testing:RemuxUITests/RemuxAppUITests/testTerminalTapKeyboardSettingAppliesToRetainedSession \
             -resultBundlePath "$RUNNER_TEMP/RemuxVoiceShortcut.xcresult"
 
       - name: Delete simulator

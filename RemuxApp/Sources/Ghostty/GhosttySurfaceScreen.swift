@@ -11,6 +11,7 @@ struct GhosttySurfaceScreenPresentation: Equatable {
     let sessionName: String
     let terminalTheme: TerminalTheme
     let toolbarKeys: TerminalToolbarKeys
+    let showKeyboardOnTerminalTap: Bool
     let loadingTitle: String
 }
 
@@ -798,8 +799,9 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
             return
         }
         let isInputAvailable = isTerminalInputAvailable
+        let requestsKeyboard = shouldShowKeyboard && presentation.showKeyboardOnTerminalTap
         if !isActiveComposerPresented {
-            if shouldShowKeyboard {
+            if requestsKeyboard {
                 showSystemKeyboard()
             } else {
                 refocusSystemKeyboardIfActive()
@@ -810,7 +812,7 @@ struct GhosttySurfaceScreen<Model: GhosttyTerminalScreenModeling>: View {
             event: "ui.tap.surface.end",
             fields: [
                 "activated": "\(isInputAvailable)",
-                "keyboard_requested": "\(shouldShowKeyboard)",
+                "keyboard_requested": "\(requestsKeyboard)",
             ]
         )
     }
